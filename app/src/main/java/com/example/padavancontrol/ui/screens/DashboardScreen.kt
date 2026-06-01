@@ -1,0 +1,631 @@
+package com.example.padavancontrol.ui.screens
+
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.padavancontrol.data.models.PortLink
+import com.example.padavancontrol.data.models.SystemStatus
+import com.example.padavancontrol.data.models.WanStatus
+import com.example.padavancontrol.theme.ArcherTeal
+import com.example.padavancontrol.ui.viewmodels.DashboardEvent
+import com.example.padavancontrol.ui.viewmodels.DashboardViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DashboardScreen(
+    viewModel: DashboardViewModel,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToShellConsole: () -> Unit,
+    onNavigateToLogViewer: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is DashboardEvent.ShowToast -> {
+                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("newifi D2", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        Text(
+                            uiState.routerIp,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.refresh() }) {
+                        Icon(
+                            Icons.Filled.Refresh,
+                            contentDescription = "Refresh",
+                            tint = ArcherTeal
+                        )
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            Icons.Filled.Settings,
+                            contentDescription = "Settings",
+                            tint = ArcherTeal
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+            )
+        },
+        modifier = modifier
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (uiState.isRefreshing && uiState.systemStatus == null) {
+                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = ArcherTeal)
+                }
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Internet Status Box
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val isConnected = uiState.wanStatus?.isConnected ?: false
+                        val dotColor = if (isConnected) Color(0xFF2ECC71) else Color(0xFFE74C3C)
+
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(dotColor)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = if (isConnected) "Internet Connected" else "No Internet Access",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                text = "IP: ${uiState.wanStatus?.wanIp ?: "0.0.0.0"} • Type: ${uiState.wanStatus?.connectionType ?: "DHCP"}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                // Physical Ethernet RJ45 Ports Panel
+                if (uiState.lanLinks.isNotEmpty()) {
+                    EthernetPortsPanel(ports = uiState.lanLinks)
+                }
+
+                // CPU & Memory Status Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        DashboardStatCard(
+                            title = "CPU Usage",
+                            value = "${uiState.systemStatus?.cpuUsage ?: 0}%",
+                            extra = "${uiState.systemStatus?.cpuTemp ?: 0f}°C",
+                            progress = (uiState.systemStatus?.cpuUsage ?: 0) / 100f
+                        )
+                    }
+
+                    val totalRam = uiState.systemStatus?.ramTotal ?: 1L
+                    val usedRam = uiState.systemStatus?.ramUsed ?: 0L
+                    val ramPercent = (usedRam.toFloat() / totalRam.toFloat())
+                    val usedMB = usedRam / (1024L * 1024L)
+                    val totalMB = totalRam / (1024L * 1024L)
+                    
+                    Box(modifier = Modifier.weight(1f)) {
+                        DashboardStatCard(
+                            title = "RAM Usage",
+                            value = "$usedMB / $totalMB MB",
+                            extra = "${(ramPercent * 100).toInt()}% Used",
+                            progress = ramPercent
+                        )
+                    }
+                }
+
+                // Detailed System Diagnostics Card
+                DetailedDiagnosticsCard(status = uiState.systemStatus)
+
+                // Interactive Wi-Fi Toggles Card
+                WifiControlCard(
+                    wifi2GEnabled = uiState.wifi2GEnabled,
+                    wifi5GEnabled = uiState.wifi5GEnabled,
+                    onToggle2G = { enable -> viewModel.toggleWifi2G(enable) },
+                    onToggle5G = { enable -> viewModel.toggleWifi5G(enable) }
+                )
+
+                // Premium Admin Quick Actions Row
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Text(
+                            text = "Administrative Actions",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = ArcherTeal
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            QuickActionButton(
+                                icon = Icons.Filled.Refresh,
+                                label = "Reboot",
+                                onClick = { viewModel.showRebootDialog() },
+                                tint = Color(0xFFE74C3C)
+                            )
+                            QuickActionButton(
+                                icon = Icons.Filled.PowerSettingsNew,
+                                label = "Shutdown",
+                                onClick = { viewModel.showShutdownDialog() },
+                                tint = Color(0xFFE67E22)
+                            )
+                            QuickActionButton(
+                                icon = Icons.Filled.Save,
+                                label = "Save",
+                                onClick = { viewModel.commitFlash() },
+                                tint = ArcherTeal
+                            )
+                            QuickActionButton(
+                                icon = Icons.AutoMirrored.Filled.Article,
+                                label = "Syslogs",
+                                onClick = onNavigateToLogViewer,
+                                tint = ArcherTeal
+                            )
+                            QuickActionButton(
+                                icon = Icons.Filled.Terminal,
+                                label = "Console",
+                                onClick = onNavigateToShellConsole,
+                                tint = ArcherTeal
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+
+    if (uiState.showRebootDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissRebootDialog() },
+            title = { Text("Reboot Router") },
+            text = { Text("Are you sure you want to reboot the newifi D2 router? It will take about 40 seconds to power back on.") },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.confirmReboot() }
+                ) {
+                    Text("REBOOT", color = Color(0xFFE74C3C), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissRebootDialog() }) {
+                    Text("CANCEL")
+                }
+            }
+        )
+    }
+
+    if (uiState.showShutdownDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissShutdownDialog() },
+            title = { Text("Power Off Router") },
+            text = { Text("Are you sure you want to power down the newifi D2 router? You will need to manually toggle the physical power switch on the device to start it again.") },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.confirmShutdown() }
+                ) {
+                    Text("SHUTDOWN", color = Color(0xFFE67E22), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissShutdownDialog() }) {
+                    Text("CANCEL")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun DashboardStatCard(
+    title: String,
+    value: String,
+    extra: String,
+    progress: Float
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(130.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = value,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Column {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = ArcherTeal,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = extra,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EthernetPortsPanel(ports: List<PortLink>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Physical Ethernet Link Status",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = ArcherTeal
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                ports.forEach { port ->
+                    PortWidget(port = port)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PortWidget(port: PortLink) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(60.dp)
+    ) {
+        // Physical RJ45 Port shape
+        Box(
+            modifier = Modifier
+                .size(45.dp, 40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (port.isConnected) ArcherTeal.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
+                .border(
+                    width = 2.dp,
+                    color = if (port.isConnected) ArcherTeal else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Link LED indicator
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (port.isConnected) Color(0xFF2ECC71) else Color.Gray)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (port.isConnected) {
+                        if (port.speed.contains("1000") || port.speed.contains("1G", ignoreCase = true)) "1G" else "100M"
+                    } else "Down",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (port.isConnected) ArcherTeal else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = port.name,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+fun WifiControlCard(
+    wifi2GEnabled: Boolean,
+    wifi5GEnabled: Boolean,
+    onToggle2G: (Boolean) -> Unit,
+    onToggle5G: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Wi-Fi Radios",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = ArcherTeal
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("2.4 GHz", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            if (wifi2GEnabled) "Active" else "Disabled",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = wifi2GEnabled,
+                        onCheckedChange = onToggle2G,
+                        colors = SwitchDefaults.colors(checkedTrackColor = ArcherTeal)
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("5.0 GHz", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            if (wifi5GEnabled) "Active" else "Disabled",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = wifi5GEnabled,
+                        onCheckedChange = onToggle5G,
+                        colors = SwitchDefaults.colors(checkedTrackColor = ArcherTeal)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QuickActionButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    tint: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(50.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = tint,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+fun DetailedDiagnosticsCard(status: SystemStatus?, modifier: Modifier = Modifier) {
+    if (status == null) return
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "System Diagnostics",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = ArcherTeal
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Load Average & Uptime Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Load Average", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(status.loadAvg, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("System Uptime", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    val days = status.uptime / 86400
+                    val hours = (status.uptime % 86400) / 3600
+                    val minutes = (status.uptime % 3600) / 60
+                    val uptimeFormatted = "${days}d ${String.format("%02d", hours)}h ${String.format("%02d", minutes)}m"
+
+                    Text(uptimeFormatted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Memory Details Section
+            Text("Memory & Swap Utilization", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ArcherTeal)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            fun formatBytes(bytes: Long): String {
+                val mb = bytes.toDouble() / (1024.0 * 1024.0)
+                return if (mb >= 1.0) {
+                    String.format(java.util.Locale.US, "%.2f MB", mb)
+                } else {
+                    String.format(java.util.Locale.US, "%d B", bytes)
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                MemoryRow("Total Physical Memory", formatBytes(status.ramTotal))
+                MemoryRow("Used Memory", formatBytes(status.ramUsed))
+                MemoryRow("Free Memory", formatBytes(status.ramFree))
+                MemoryRow("Cached Memory", formatBytes(status.ramCached))
+                MemoryRow("Buffers Memory", formatBytes(status.ramBuffers))
+                MemoryRow("Swap Space", formatBytes(status.swapTotal))
+                MemoryRow("Swap Used", formatBytes(status.swapUsed))
+            }
+        }
+    }
+}
+
+@Composable
+fun MemoryRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+    }
+}

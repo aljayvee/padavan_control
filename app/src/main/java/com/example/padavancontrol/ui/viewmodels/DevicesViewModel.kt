@@ -1,0 +1,59 @@
+package com.example.padavancontrol.ui.viewmodels
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.padavancontrol.data.PadavanRepository
+import com.example.padavancontrol.data.models.LanClient
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class DevicesUiState(
+    val clients: List<LanClient> = emptyList(),
+    val isLoading: Boolean = true,
+    val searchQuery: String = ""
+)
+
+class DevicesViewModel(
+    private val repository: PadavanRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(DevicesUiState())
+    val uiState: StateFlow<DevicesUiState> = _uiState.asStateFlow()
+
+    private var pollingJob: Job? = null
+
+    init {
+        startPolling()
+    }
+
+    private fun startPolling() {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                repository.getLanClients().collect { result ->
+                    result.onSuccess { list ->
+                        _uiState.update { it.copy(clients = list, isLoading = false) }
+                    }
+                    result.onFailure { error ->
+                        _uiState.update { it.copy(isLoading = false) }
+                    }
+                }
+                delay(5000)
+            }
+        }
+    }
+
+    fun updateSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        pollingJob?.cancel()
+    }
+}
