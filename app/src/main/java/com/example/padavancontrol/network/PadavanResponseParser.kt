@@ -16,7 +16,8 @@ import com.google.gson.JsonObject
 import java.util.regex.Pattern
 
 object PadavanResponseParser {
-    private val gson = Gson()
+    @Suppress("DEPRECATION")
+    private val gson = com.google.gson.GsonBuilder().setLenient().create()
 
     fun parseSystemStatus(html: String): SystemStatus? {
         try {
@@ -91,7 +92,7 @@ object PadavanResponseParser {
 
                 // Each client is defined as: ["ComputerName", "IPAddress", "MACAddress", rssi_type, rssi_val, device_type, has_http, status]
                 val arrayPattern =
-                    Pattern.compile("\\[\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*([^,]*)\\s*,\\s*([^,]*)\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*\\]")
+                    Pattern.compile("\\[\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*([^,]*)\\s*,\\s*([^,]*)\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*\\]")
                 val arrayMatcher = arrayPattern.matcher(arrayContent)
                 while (arrayMatcher.find()) {
                     val hostname = arrayMatcher.group(1) ?: ""
@@ -310,23 +311,36 @@ object PadavanResponseParser {
         if (valStr == "1") return true
         if (valStr == "0") return false
         
-        if (html.contains("id=\"${name}_fake\" value=\"1 checked", ignoreCase = true) || 
-            html.contains("id=\"${nameWithoutX}_fake\" value=\"1 checked", ignoreCase = true) || 
-            html.contains("name=\"${name}\" value=\"1\" checked", ignoreCase = true) ||
-            html.contains("name=\"${name}\" value=\"1 checked", ignoreCase = true) ||
-            html.contains("name=\"${nameWithoutX}\" value=\"1 checked", ignoreCase = true) ||
-            html.contains("name=\"${nameWithoutX}\" value=\"1\" checked", ignoreCase = true) ||
-            html.contains("name=\"${name}_fake\" value=\"\" checked", ignoreCase = true) ||
-            html.contains("name=\"${nameWithoutX}_fake\" value=\"\" checked", ignoreCase = true) ||
-            html.contains("name=\"${name}_fake\" value=\"1 checked", ignoreCase = true) ||
-            html.contains("name=\"${nameWithoutX}_fake\" value=\"1 checked", ignoreCase = true) ||
-            html.contains("name=\"${name}_fake\" value=\"1\" checked", ignoreCase = true) ||
-            html.contains("name=\"${nameWithoutX}_fake\" value=\"1\" checked", ignoreCase = true) ||
-            html.contains("name=\"${name}_fake\" checked", ignoreCase = true) ||
-            html.contains("name=\"${nameWithoutX}_fake\" checked", ignoreCase = true) ||
-            html.contains("id=\"${name}_fake\" checked", ignoreCase = true) ||
-            html.contains("id=\"${nameWithoutX}_fake\" checked", ignoreCase = true)) {
-            return true
+        try {
+            val inputPattern = Pattern.compile("<input([^>]*?)>", Pattern.CASE_INSENSITIVE)
+            val matcher = inputPattern.matcher(html)
+            while (matcher.find()) {
+                val attributesRaw = matcher.group(1) ?: ""
+                val normalizedAttributes = attributesRaw.replace("\\s+".toRegex(), " ")
+                    .replace("\\s*=\\s*\"".toRegex(), "=\"")
+                    .replace("\\s*=\\s*'".toRegex(), "=\"")
+                    .replace("'".toRegex(), "\"")
+                    .trim()
+
+                val isTarget = normalizedAttributes.contains("name=\"$name\"", ignoreCase = true) ||
+                               normalizedAttributes.contains("name=\"${name}_fake\"", ignoreCase = true) ||
+                               normalizedAttributes.contains("name=\"$nameWithoutX\"", ignoreCase = true) ||
+                               normalizedAttributes.contains("name=\"${nameWithoutX}_fake\"", ignoreCase = true) ||
+                               normalizedAttributes.contains("id=\"$name\"", ignoreCase = true) ||
+                               normalizedAttributes.contains("id=\"${name}_fake\"", ignoreCase = true) ||
+                               normalizedAttributes.contains("id=\"$nameWithoutX\"", ignoreCase = true) ||
+                               normalizedAttributes.contains("id=\"${nameWithoutX}_fake\"", ignoreCase = true)
+
+                if (isTarget) {
+                    val isChecked = normalizedAttributes.contains("checked", ignoreCase = true) ||
+                                    normalizedAttributes.contains("value=\"1 checked\"", ignoreCase = true)
+                    if (isChecked) {
+                        return true
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         return false
     }
@@ -1042,7 +1056,7 @@ object PadavanResponseParser {
                 arrayContent = html
             }
 
-            val entryPattern = Pattern.compile("\\[\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"[^\\]]*\\]", Pattern.CASE_INSENSITIVE)
+            val entryPattern = Pattern.compile("\\[\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"[^\\]]*\\]", Pattern.CASE_INSENSITIVE)
             val entryMatcher = entryPattern.matcher(arrayContent)
             while (entryMatcher.find()) {
                 var ssid = entryMatcher.group(1) ?: ""
