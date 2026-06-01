@@ -33,6 +33,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -269,17 +274,14 @@ fun AdvancedFirewallScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (uiState.isLoading) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator(color = ArcherTeal)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Retrieving Firewall parameters...", color = Color.Gray, fontSize = 14.sp)
-                }
-            } else if (uiState.errorMessage != null) {
+            val animatedProgress by animateFloatAsState(
+                targetValue = uiState.loadProgress,
+                animationSpec = tween(durationMillis = 800, easing = LinearEasing),
+                label = "loadProgressAnimation"
+            )
+            val showLoader = uiState.isLoading || animatedProgress < 0.99f
+
+            if (uiState.errorMessage != null) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -304,6 +306,38 @@ fun AdvancedFirewallScreen(
                     ) {
                         Text("Retry")
                     }
+                }
+            } else if (showLoader) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    LinearProgressIndicator(
+                        progress = { animatedProgress },
+                        color = ArcherTeal,
+                        trackColor = Color(0xFFE0F2F1),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "${(animatedProgress * 100).toInt()}%",
+                        color = ArcherTeal,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = uiState.loadStatus.ifEmpty { "Fetching Firewall configuration..." },
+                        color = Color.Gray,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
                 }
             } else {
                 val scrollState = rememberScrollState()

@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
@@ -34,6 +36,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.padavancontrol.data.models.WirelessConfig
+import com.example.padavancontrol.data.models.WirelessMacFilterRule
 import com.example.padavancontrol.theme.ArcherTeal
 import com.example.padavancontrol.ui.viewmodels.AdvancedWirelessViewModel
 import kotlinx.coroutines.launch
@@ -334,21 +342,14 @@ fun AdvancedWirelessScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (uiState.isLoading) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator(color = ArcherTeal)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Reading router NVRAM parameters...",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp
-                    )
-                }
-            } else if (uiState.errorMessage != null) {
+            val animatedProgress by animateFloatAsState(
+                targetValue = uiState.loadProgress,
+                animationSpec = tween(durationMillis = 800, easing = LinearEasing),
+                label = "loadProgressAnimation"
+            )
+            val showLoader = uiState.isLoading || animatedProgress < 0.99f
+
+            if (uiState.errorMessage != null) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -384,6 +385,38 @@ fun AdvancedWirelessScreen(
                         Text("Retry Connection", color = Color.White)
                     }
                 }
+            } else if (showLoader) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    LinearProgressIndicator(
+                        progress = { animatedProgress },
+                        color = ArcherTeal,
+                        trackColor = Color(0xFFE0F2F1),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "${(animatedProgress * 100).toInt()}%",
+                        color = ArcherTeal,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = uiState.loadStatus.ifEmpty { "Fetching Wireless configuration..." },
+                        color = Color.Gray,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
             } else {
                 Column(
                     modifier = Modifier
@@ -405,6 +438,7 @@ fun AdvancedWirelessScreen(
                             onConfigChange = { viewModel.updateConfig(it) }
                         )
                         "Guest" -> GuestSettingsForm(
+                            is5GHz = is5GHz,
                             config = uiState.config,
                             ssidError = guestSsidError,
                             wpaPskError = guestWpaPskError,
@@ -422,11 +456,18 @@ fun AdvancedWirelessScreen(
                                 showScanDialog = true
                             }
                         )
+                        "RADIUS" -> RadiusSettingsForm(
+                            config = uiState.config,
+                            onConfigChange = { viewModel.updateConfig(it) }
+                        )
+                        "MAC Filter" -> MacFilterSettingsForm(
+                            config = uiState.config,
+                            onConfigChange = { viewModel.updateConfig(it) }
+                        )
                         "Professional" -> ProfessionalSettingsForm(
                             config = uiState.config,
                             onConfigChange = { viewModel.updateConfig(it) }
                         )
-                        else -> PlaceholderSettingsForm(title = title)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -513,6 +554,103 @@ fun GlassHeaderCard(is5GHz: Boolean, section: String) {
 }
 
 @Composable
+fun DaySelectionRow(
+    label: String,
+    daysList: List<Pair<String, Int>>,
+    dateStr: String,
+    onDateChange: (String) -> Unit
+) {
+    Column {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            daysList.forEach { (dayName, index) ->
+                val isChecked = dateStr.getOrNull(index) == '1'
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isChecked) ArcherTeal else MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable {
+                            val chars = dateStr.toCharArray().toMutableList()
+                            while (chars.size <= index) chars.add('0')
+                            chars[index] = if (isChecked) '0' else '1'
+                            onDateChange(chars.joinToString(""))
+                        }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = dayName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isChecked) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TimeRangeInput(
+    label: String,
+    timeStr: String,
+    onTimeChange: (String) -> Unit
+) {
+    val sh = if (timeStr.length >= 2) timeStr.substring(0, 2) else "00"
+    val sm = if (timeStr.length >= 4) timeStr.substring(2, 4) else "00"
+    val eh = if (timeStr.length >= 6) timeStr.substring(4, 6) else "23"
+    val em = if (timeStr.length >= 8) timeStr.substring(6, 8) else "59"
+
+    Column {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = sh,
+                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) onTimeChange("${it.padStart(2, '0')}$sm$eh$em") },
+                label = { Text("Start Hr") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            OutlinedTextField(
+                value = sm,
+                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) onTimeChange("$sh${it.padStart(2, '0')}$eh$em") },
+                label = { Text("Start Min") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            Text("-", fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                value = eh,
+                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) onTimeChange("$sh$sm${it.padStart(2, '0')}$em") },
+                label = { Text("End Hr") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            OutlinedTextField(
+                value = em,
+                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) onTimeChange("$sh$sm$eh${it.padStart(2, '0')}") },
+                label = { Text("End Min") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        }
+    }
+}
+
+@Composable
 fun GeneralSettingsForm(
     is5GHz: Boolean,
     config: WirelessConfig,
@@ -581,7 +719,7 @@ fun GeneralSettingsForm(
 
                 // Channel Bandwidth Dropdown
                 val bandwidthOptions = if (is5GHz) {
-                    listOf("20 MHz" to "0", "20/40 MHz" to "1", "20/40/80 MHz" to "2", "20/40/80/160 MHz" to "3")
+                    listOf("20 MHz" to "0", "20/40 MHz" to "1", "20/40/80 MHz" to "2")
                 } else {
                     listOf("20 MHz" to "0", "20/40 MHz" to "1")
                 }
@@ -608,6 +746,46 @@ fun GeneralSettingsForm(
                     onSelect = { selectedName ->
                         val code = channelOptions.first { it.first == selectedName }.second
                         onConfigChange(config.copy(channel = code))
+                    }
+                )
+
+                // Extension Channel Dropdown
+                val extOptions = if (is5GHz) {
+                    listOf("Auto" to "1")
+                } else {
+                    listOf("Below" to "0", "Above" to "1")
+                }
+                WirelessDropdownField(
+                    label = "Extension Channel",
+                    selectedValue = extOptions.firstOrNull { it.second == config.extChannel }?.first ?: "Below",
+                    options = extOptions.map { it.first },
+                    onSelect = { selectedName ->
+                        val code = extOptions.first { it.first == selectedName }.second
+                        onConfigChange(config.copy(extChannel = code))
+                    }
+                )
+
+                // Fixed TX Rate Link Mode Dropdown
+                val mcsOptions = if (is5GHz) {
+                    listOf(
+                        "No (*)" to "0", "VHT (1S) 88 Mbps" to "7", "VHT (1S) 58 Mbps" to "8", "VHT (1S) 29 Mbps" to "9",
+                        "HTMIX (1S) 45 Mbps" to "1", "HTMIX (1S) 30 Mbps" to "2", "HTMIX (1S) 15 Mbps" to "3",
+                        "OFDM 12 Mbps" to "4", "OFDM 9 Mbps" to "5", "OFDM 6 Mbps" to "6"
+                    )
+                } else {
+                    listOf(
+                        "No (*)" to "0", "HTMIX (1S) 45 Mbps" to "1", "HTMIX (1S) 30 Mbps" to "2", "HTMIX (1S) 15 Mbps" to "3",
+                        "OFDM 12 Mbps" to "4", "OFDM 9 Mbps" to "5", "OFDM 6 Mbps" to "6",
+                        "CCK 5.5 Mbps" to "7", "CCK 2 Mbps" to "8", "CCK 1 Mbps" to "9"
+                    )
+                }
+                WirelessDropdownField(
+                    label = "Fixed TX Rate Link Mode",
+                    selectedValue = mcsOptions.firstOrNull { it.second == config.mcsMode }?.first ?: "No (*)",
+                    options = mcsOptions.map { it.first },
+                    onSelect = { selectedName ->
+                        val code = mcsOptions.first { it.first == selectedName }.second
+                        onConfigChange(config.copy(mcsMode = code))
                     }
                 )
 
@@ -668,7 +846,115 @@ fun GeneralSettingsForm(
                             }
                         }
                     )
+
+                    // Network Key Rotation
+                    OutlinedTextField(
+                        value = config.wpaGtkRekey.toString(),
+                        onValueChange = { onConfigChange(config.copy(wpaGtkRekey = it.toIntOrNull() ?: 3600)) },
+                        label = { Text("Network Key Rotation Interval (sec)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
                 }
+
+                // TX Power Adjustments %
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("TX Power Adjustment", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("${config.txPower}%", fontWeight = FontWeight.Bold, color = ArcherTeal, fontSize = 13.sp)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Slider(
+                        value = config.txPower.toFloat(),
+                        onValueChange = { onConfigChange(config.copy(txPower = it.toInt())) },
+                        valueRange = 0f..100f,
+                        steps = 100,
+                        colors = SliderDefaults.colors(thumbColor = ArcherTeal, activeTrackColor = ArcherTeal)
+                    )
+                }
+
+                // Region Code
+                val countries = listOf(
+                    "USA (US)" to "US",
+                    "China (CN)" to "CN",
+                    "Europe (GB)" to "GB",
+                    "Taiwan (TW)" to "TW",
+                    "Japan (JP)" to "JP",
+                    "Russia (RU)" to "RU",
+                    "Australia (AU)" to "AU",
+                    "All Channels Debug (DB)" to "DB"
+                )
+                WirelessDropdownField(
+                    label = "Regulatory Region Code",
+                    selectedValue = countries.firstOrNull { it.second == config.countryCode }?.first ?: "USA (US)",
+                    options = countries.map { it.first },
+                    onSelect = { selected ->
+                        val code = countries.first { it.first == selected }.second
+                        onConfigChange(config.copy(countryCode = code))
+                    }
+                )
+
+                // Low RSSI Kick
+                OutlinedTextField(
+                    value = if (config.kickStaRssiLow == 0) "" else config.kickStaRssiLow.toString(),
+                    onValueChange = {
+                        val value = it.toIntOrNull() ?: 0
+                        if (value in -100..0) {
+                            onConfigChange(config.copy(kickStaRssiLow = value))
+                        }
+                    },
+                    label = { Text("Low RSSI Roaming Kick threshold (dBm)") },
+                    supportingText = { Text("Range: -100 to 0. 0 = Disabled. Auto kicks low signal clients.", fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+
+                // Assoc Req RSSI
+                OutlinedTextField(
+                    value = if (config.assocReqRssiThres == 0) "" else config.assocReqRssiThres.toString(),
+                    onValueChange = {
+                        val value = it.toIntOrNull() ?: 0
+                        if (value in -100..0) {
+                            onConfigChange(config.copy(assocReqRssiThres = value))
+                        }
+                    },
+                    label = { Text("Association Req RSSI threshold (dBm)") },
+                    supportingText = { Text("Range: -100 to 0. 0 = Disabled. Rejects connections under threshold.", fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+
+                // Radio schedules layout
+                Text("Radio Schedule", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = ArcherTeal)
+                
+                DaySelectionRow(
+                    label = "Date to Enable Radio (workweek):",
+                    daysList = listOf("Mo" to 1, "Tu" to 2, "We" to 3, "Th" to 4, "Fr" to 5),
+                    dateStr = config.radioDate,
+                    onDateChange = { onConfigChange(config.copy(radioDate = it)) }
+                )
+                TimeRangeInput(
+                    label = "Time of Day to Enable Radio (workweek):",
+                    timeStr = config.radioTimeWorkweek,
+                    onTimeChange = { onConfigChange(config.copy(radioTimeWorkweek = it)) }
+                )
+                DaySelectionRow(
+                    label = "Date to Enable Radio (weekend):",
+                    daysList = listOf("Sa" to 6, "Su" to 0),
+                    dateStr = config.radioDate,
+                    onDateChange = { onConfigChange(config.copy(radioDate = it)) }
+                )
+                TimeRangeInput(
+                    label = "Time of Day to Enable Radio (weekend):",
+                    timeStr = config.radioTimeWeekend,
+                    onTimeChange = { onConfigChange(config.copy(radioTimeWeekend = it)) }
+                )
             }
         }
     }
@@ -676,6 +962,7 @@ fun GeneralSettingsForm(
 
 @Composable
 fun GuestSettingsForm(
+    is5GHz: Boolean,
     config: WirelessConfig,
     ssidError: String?,
     wpaPskError: String?,
@@ -701,7 +988,7 @@ fun GuestSettingsForm(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Guest AP Isolation Enable", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Enable Guest AP?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     Text("Provides a separate isolated SSID for guests.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(
@@ -747,7 +1034,7 @@ fun GuestSettingsForm(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("LAN Isolation", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Isolation between Guest AP and LAN", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         Text("Stops guests from pinging LAN hosts / router admin portal.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(
@@ -764,7 +1051,7 @@ fun GuestSettingsForm(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Intra-AP Client Isolation", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Set AP Clients Isolated?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         Text("Stops guests from communicating with each other.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(
@@ -774,27 +1061,84 @@ fun GuestSettingsForm(
                     )
                 }
 
-                // Auth
+                // Fixed TX Rate Link Mode
+                val guestMcsOptions = if (is5GHz) {
+                    listOf(
+                        "No (*)" to "0", "VHT (1S) 98 Mbps" to "7", "VHT (1S) 65 Mbps" to "8", "VHT (1S) 33 Mbps" to "9",
+                        "HTMIX (1S) 45 Mbps" to "1", "HTMIX (1S) 30 Mbps" to "2", "HTMIX (1S) 15 Mbps" to "3",
+                        "OFDM 12 Mbps" to "4", "OFDM 9 Mbps" to "5", "OFDM 6 Mbps" to "6"
+                    )
+                } else {
+                    listOf(
+                        "No (*)" to "0", "HTMIX (1S) 45 Mbps" to "1", "HTMIX (1S) 30 Mbps" to "2", "HTMIX (1S) 15 Mbps" to "3",
+                        "OFDM 12 Mbps" to "4", "OFDM 9 Mbps" to "5", "OFDM 6 Mbps" to "6",
+                        "CCK 5.5 Mbps" to "7", "CCK 2 Mbps" to "8", "CCK 1 Mbps" to "9"
+                    )
+                }
+                WirelessDropdownField(
+                    label = "Fixed TX Rate Link Mode",
+                    selectedValue = guestMcsOptions.firstOrNull { it.second == config.guestMcsMode }?.first ?: "No (*)",
+                    options = guestMcsOptions.map { it.first },
+                    onSelect = { selectedName ->
+                        val code = guestMcsOptions.first { it.first == selectedName }.second
+                        onConfigChange(config.copy(guestMcsMode = code))
+                    }
+                )
+
+                // Auth Method
+                val authOptions = listOf(
+                    "Open System" to "open",
+                    "WPA-Personal" to "psk",
+                    "WPA2-Personal" to "psk",
+                    "WPA-Auto-Personal" to "psk"
+                )
                 WirelessDropdownField(
                     label = "Authentication Method",
-                    selectedValue = when (config.guestAuthMode) {
-                        "psk" -> if (config.guestWpaMode == "2") "WPA2-Personal" else "WPA-Personal"
-                        else -> "Open System"
-                    },
-                    options = listOf("Open System", "WPA-Personal", "WPA2-Personal"),
+                    selectedValue = if (config.guestAuthMode == "psk") {
+                        when (config.guestWpaMode) {
+                            "1" -> "WPA-Personal"
+                            "2" -> "WPA2-Personal"
+                            else -> "WPA-Auto-Personal"
+                        }
+                    } else "Open System",
+                    options = authOptions.map { it.first },
                     onSelect = { selected ->
                         val code = if (selected.contains("WPA")) "psk" else "open"
-                        val wMode = if (selected == "WPA2-Personal") "2" else "1"
+                        val wMode = when (selected) {
+                            "WPA-Personal" -> "1"
+                            "WPA2-Personal" -> "2"
+                            else -> "0"
+                        }
                         onConfigChange(config.copy(guestAuthMode = code, guestWpaMode = wMode))
                     }
                 )
 
                 if (config.guestAuthMode == "psk") {
+                    // Encryption type
+                    val cryptoOptions = listOf("AES", "TKIP", "TKIP+AES")
+                    WirelessDropdownField(
+                        label = "WPA Encryption",
+                        selectedValue = when (config.guestCrypto) {
+                            "aes" -> "AES"
+                            "tkip" -> "TKIP"
+                            else -> "TKIP+AES"
+                        },
+                        options = cryptoOptions,
+                        onSelect = { selected ->
+                            val cVal = when (selected) {
+                                "AES" -> "aes"
+                                "TKIP" -> "tkip"
+                                else -> "tkip+aes"
+                            }
+                            onConfigChange(config.copy(guestCrypto = cVal))
+                        }
+                    )
+
                     // Password
                     OutlinedTextField(
                         value = config.guestWpaPsk,
                         onValueChange = { onConfigChange(config.copy(guestWpaPsk = it)) },
-                        label = { Text("Guest WPA Pre-Shared Key") },
+                        label = { Text("WPA Pre-Shared Key") },
                         isError = wpaPskError != null,
                         supportingText = wpaPskError?.let { { Text(it, color = Color.Red) } },
                         modifier = Modifier.fillMaxWidth(),
@@ -810,6 +1154,49 @@ fun GuestSettingsForm(
                         }
                     )
                 }
+
+                // guestMacRule
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Use MAC Address Filter Rules?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Applies access control list rules to the guest network.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(
+                        checked = config.guestMacRule,
+                        onCheckedChange = { onConfigChange(config.copy(guestMacRule = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                    )
+                }
+
+                // Schedules
+                Text("Guest Schedule", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = ArcherTeal)
+                
+                DaySelectionRow(
+                    label = "Date to Active Guest AP (workweek):",
+                    daysList = listOf("Mo" to 1, "Tu" to 2, "We" to 3, "Th" to 4, "Fr" to 5),
+                    dateStr = config.guestDate,
+                    onDateChange = { onConfigChange(config.copy(guestDate = it)) }
+                )
+                TimeRangeInput(
+                    label = "Time of Day to Active Guest AP (workweek):",
+                    timeStr = config.guestTimeWorkweek,
+                    onTimeChange = { onConfigChange(config.copy(guestTimeWorkweek = it)) }
+                )
+                DaySelectionRow(
+                    label = "Date to Active Guest AP (weekend):",
+                    daysList = listOf("Sa" to 6, "Su" to 0),
+                    dateStr = config.guestDate,
+                    onDateChange = { onConfigChange(config.copy(guestDate = it)) }
+                )
+                TimeRangeInput(
+                    label = "Time of Day to Active Guest AP (weekend):",
+                    timeStr = config.guestTimeWeekend,
+                    onTimeChange = { onConfigChange(config.copy(guestTimeWeekend = it)) }
+                )
             }
         }
     }
@@ -998,13 +1385,270 @@ fun ProfessionalSettingsForm(
         ) {
             Text("Professional / Advanced parameters", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
 
-            // Tx Power
+            // HT Spatial Streams TX
+            val txStreamOptions = listOf("1T" to "1", "2T" to "2", "3T" to "3", "4T" to "4")
+            WirelessDropdownField(
+                label = "HT Spatial Streams TX",
+                selectedValue = txStreamOptions.firstOrNull { it.second == config.streamTx }?.first ?: "2T",
+                options = txStreamOptions.map { it.first },
+                onSelect = { selected ->
+                    val code = txStreamOptions.first { it.first == selected }.second
+                    onConfigChange(config.copy(streamTx = code))
+                }
+            )
+
+            // HT Spatial Streams RX
+            val rxStreamOptions = listOf("1R" to "1", "2R" to "2", "3R" to "3", "4R" to "4")
+            WirelessDropdownField(
+                label = "HT Spatial Streams RX",
+                selectedValue = rxStreamOptions.firstOrNull { it.second == config.streamRx }?.first ?: "2R",
+                options = rxStreamOptions.map { it.first },
+                onSelect = { selected ->
+                    val code = rxStreamOptions.first { it.first == selected }.second
+                    onConfigChange(config.copy(streamRx = code))
+                }
+            )
+
+            // Energy Saving Green AP?
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Enable Energy Saving Green AP?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Reduces power consumption when traffic is low.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = config.greenAp,
+                    onCheckedChange = { onConfigChange(config.copy(greenAp = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                )
+            }
+
+            // Set AP Clients Isolated?
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Set AP Clients Isolated?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Prevents wireless clients from communicating with each other.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = config.apIsolate,
+                    onCheckedChange = { onConfigChange(config.copy(apIsolate = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                )
+            }
+
+            // Preamble Type
+            val preambleOptions = listOf("Long" to "0", "Short (*)" to "1")
+            WirelessDropdownField(
+                label = "Preamble Type",
+                selectedValue = preambleOptions.firstOrNull { it.second == config.preamble }?.first ?: "Short (*)",
+                options = preambleOptions.map { it.first },
+                onSelect = { selected ->
+                    val code = preambleOptions.first { it.first == selected }.second
+                    onConfigChange(config.copy(preamble = code))
+                }
+            )
+
+            // Fragmentation Threshold
+            OutlinedTextField(
+                value = config.fragThresh.toString(),
+                onValueChange = {
+                    it.toIntOrNull()?.let { valVal ->
+                        if (valVal in 256..2346) {
+                            onConfigChange(config.copy(fragThresh = valVal))
+                        }
+                    }
+                },
+                label = { Text("Fragmentation Threshold") },
+                supportingText = { Text("Range: 256..2346. Default: 2346", fontSize = 11.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true
+            )
+
+            // RTS Threshold
+            OutlinedTextField(
+                value = config.rtsThresh.toString(),
+                onValueChange = {
+                    it.toIntOrNull()?.let { valVal ->
+                        if (valVal in 1..2347) {
+                            onConfigChange(config.copy(rtsThresh = valVal))
+                        }
+                    }
+                },
+                label = { Text("RTS Threshold") },
+                supportingText = { Text("Range: 1..2347. Default: 2347", fontSize = 11.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true
+            )
+
+            // DTIM Interval
+            OutlinedTextField(
+                value = config.dtimInterval.toString(),
+                onValueChange = {
+                    it.toIntOrNull()?.let { valVal ->
+                        if (valVal in 1..255) {
+                            onConfigChange(config.copy(dtimInterval = valVal))
+                        }
+                    }
+                },
+                label = { Text("DTIM Interval") },
+                supportingText = { Text("Range: 1..255. Default: 1", fontSize = 11.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true
+            )
+
+            // Beacon Interval
+            OutlinedTextField(
+                value = config.bcnInterval.toString(),
+                onValueChange = {
+                    it.toIntOrNull()?.let { valVal ->
+                        if (valVal in 20..1000) {
+                            onConfigChange(config.copy(bcnInterval = valVal))
+                        }
+                    }
+                },
+                label = { Text("Beacon Interval") },
+                supportingText = { Text("Range: 20..1000. Default: 100", fontSize = 11.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true
+            )
+
+            // Enable TX Bursting?
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Enable TX Bursting?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Improves transmission efficiency.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = config.txBurst,
+                    onCheckedChange = { onConfigChange(config.copy(txBurst = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                )
+            }
+
+            // Enable Packet Aggregation?
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Enable Packet Aggregation?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Combines multiple packets for faster throughput.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = config.pktAggregate,
+                    onCheckedChange = { onConfigChange(config.copy(pktAggregate = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                )
+            }
+
+            // Enable Reverse Direction Grant (RDG)?
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Enable Reverse Direction Grant (RDG)?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Speeds up packet flows for compatible clients.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = config.htRdg,
+                    onCheckedChange = { onConfigChange(config.copy(htRdg = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                )
+            }
+
+            // Enable Auto Block Acknowledgement (AutoBA)?
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Enable Auto Block Acknowledgement (AutoBA)?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Negotiates block AC auto-acknowledgement flows.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = config.htAutoBA,
+                    onCheckedChange = { onConfigChange(config.copy(htAutoBA = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                )
+            }
+
+            // Enable AMSDU?
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Enable AMSDU?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Aggregates MAC service data units.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = config.htAmsdu,
+                    onCheckedChange = { onConfigChange(config.copy(htAmsdu = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                )
+            }
+
+            // Enable WMM?
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Enable WMM?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Wireless Multimedia priority QoS routing.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = config.wmmCapable,
+                    onCheckedChange = { onConfigChange(config.copy(wmmCapable = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                )
+            }
+
+            // Enable WMM APSD?
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Enable WMM APSD?", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Automatic Power Save Delivery.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = config.wmmApsd,
+                    onCheckedChange = { onConfigChange(config.copy(wmmApsd = it)) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal)
+                )
+            }
+
+            // Tx Power Adjustment in Professional settings too (as per ASP, but let's keep it clean since it's already there)
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Transceiver Transmission Power", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("TX Power Adjustment", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     Text("${config.txPower}%", fontWeight = FontWeight.Bold, color = ArcherTeal, fontSize = 13.sp)
                 }
                 Spacer(modifier = Modifier.height(4.dp))
@@ -1015,10 +1659,9 @@ fun ProfessionalSettingsForm(
                     steps = 100,
                     colors = SliderDefaults.colors(thumbColor = ArcherTeal, activeTrackColor = ArcherTeal)
                 )
-                Text("Reducing Tx power limits range and limits interference in high density environments.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            // Country Code
+            // Country Code in Professional Settings
             val countries = listOf(
                 "USA (US)" to "US",
                 "China (CN)" to "CN",
@@ -1039,7 +1682,7 @@ fun ProfessionalSettingsForm(
                 }
             )
 
-            // Low RSSI Kick
+            // Low RSSI Kick in Professional Settings
             OutlinedTextField(
                 value = if (config.kickStaRssiLow == 0) "" else config.kickStaRssiLow.toString(),
                 onValueChange = {
@@ -1055,7 +1698,7 @@ fun ProfessionalSettingsForm(
                 singleLine = true
             )
 
-            // Assoc Req RSSI
+            // Assoc Req RSSI in Professional Settings
             OutlinedTextField(
                 value = if (config.assocReqRssiThres == 0) "" else config.assocReqRssiThres.toString(),
                 onValueChange = {
@@ -1075,7 +1718,10 @@ fun ProfessionalSettingsForm(
 }
 
 @Composable
-fun PlaceholderSettingsForm(title: String) {
+fun RadiusSettingsForm(
+    config: WirelessConfig,
+    onConfigChange: (WirelessConfig) -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -1085,12 +1731,149 @@ fun PlaceholderSettingsForm(title: String) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Module Focus: RADIUS / MAC Filters", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
-            Text(
-                "This module will be expanded with custom tables in Phase 3. The underlying Retrofit APIs and NVRAM binding hooks for $title are fully supported in our data layer.",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            Text("RADIUS Settings", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+
+            OutlinedTextField(
+                value = config.radiusIp,
+                onValueChange = { onConfigChange(config.copy(radiusIp = it)) },
+                label = { Text("Server IP Address") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
+
+            OutlinedTextField(
+                value = config.radiusPort.toString(),
+                onValueChange = { 
+                    val port = it.toIntOrNull() ?: 1812
+                    onConfigChange(config.copy(radiusPort = port)) 
+                },
+                label = { Text("Server Port (Default: 1812)") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+
+            OutlinedTextField(
+                value = config.radiusKey,
+                onValueChange = { onConfigChange(config.copy(radiusKey = it)) },
+                label = { Text("Connection Secret") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MacFilterSettingsForm(
+    config: WirelessConfig,
+    onConfigChange: (WirelessConfig) -> Unit
+) {
+    var newMacAddress by remember { mutableStateOf("") }
+    var newDescription by remember { mutableStateOf("") }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Wireless MAC Filter", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+
+            WirelessDropdownField(
+                label = "MAC Access Control Mode",
+                selectedValue = when (config.macFilterMode) {
+                    "accept" -> "Accept"
+                    "reject" -> "Reject"
+                    else -> "Disabled"
+                },
+                options = listOf("Disabled", "Accept", "Reject"),
+                onSelect = { selected ->
+                    val mode = when (selected) {
+                        "Accept" -> "accept"
+                        "Reject" -> "reject"
+                        else -> "disabled"
+                    }
+                    onConfigChange(config.copy(macFilterMode = mode))
+                }
+            )
+
+            if (config.macFilterMode != "disabled") {
+                Text("MAC Address List", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                
+                if (config.macFilterRules.isEmpty()) {
+                    Text("No MAC addresses added.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    config.macFilterRules.forEach { rule ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(rule.mac, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                if (rule.desc.isNotEmpty()) {
+                                    Text(rule.desc, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            IconButton(onClick = {
+                                val newList = config.macFilterRules.toMutableList()
+                                newList.remove(rule)
+                                onConfigChange(config.copy(macFilterRules = newList))
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                            }
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newMacAddress,
+                        onValueChange = { newMacAddress = it },
+                        label = { Text("MAC Address (XX:XX:XX:XX:XX:XX)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = newDescription,
+                            onValueChange = { newDescription = it },
+                            label = { Text("Client Description") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        IconButton(
+                            onClick = {
+                                if (newMacAddress.isNotBlank()) {
+                                    val newList = config.macFilterRules.toMutableList()
+                                    newList.add(
+                                        WirelessMacFilterRule(
+                                            mac = newMacAddress.trim().uppercase(),
+                                            desc = newDescription.trim()
+                                        )
+                                    )
+                                    onConfigChange(config.copy(macFilterRules = newList))
+                                    newMacAddress = ""
+                                    newDescription = ""
+                                }
+                            },
+                            modifier = Modifier.background(ArcherTeal, shape = RoundedCornerShape(8.dp))
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add MAC", tint = Color.White)
+                        }
+                    }
+                }
+            }
         }
     }
 }

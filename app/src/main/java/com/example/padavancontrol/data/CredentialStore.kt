@@ -1,6 +1,10 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.padavancontrol.data
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.os.Build
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -9,13 +13,34 @@ class CredentialStore(context: Context) {
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
-    private val sharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "secure_padavan_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val sharedPreferences: SharedPreferences = try {
+        createEncryptedSharedPreferences(context, masterKey)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                context.deleteSharedPreferences("secure_padavan_prefs")
+            } else {
+                val sharedPrefsFile = java.io.File(context.filesDir.parent, "shared_prefs/secure_padavan_prefs.xml")
+                if (sharedPrefsFile.exists()) {
+                    sharedPrefsFile.delete()
+                }
+            }
+        } catch (delEx: Exception) {
+            delEx.printStackTrace()
+        }
+        createEncryptedSharedPreferences(context, masterKey)
+    }
+
+    private fun createEncryptedSharedPreferences(context: Context, key: MasterKey): SharedPreferences {
+        return EncryptedSharedPreferences.create(
+            context,
+            "secure_padavan_prefs",
+            key,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
 
     fun saveCredentials(
         username: String,
@@ -56,5 +81,17 @@ class CredentialStore(context: Context) {
 
     fun saveRouterIp(ipAddress: String) {
         sharedPreferences.edit().putString("router_ip", ipAddress).apply()
+    }
+
+    fun saveHardwareModel(productId: String) {
+        sharedPreferences.edit().putString("hardware_model", productId).apply()
+    }
+
+    fun getHardwareModel(): String = sharedPreferences.getString("hardware_model", "") ?: ""
+
+    fun isOnboardingCompleted(): Boolean = sharedPreferences.getBoolean("onboarding_completed", false)
+
+    fun setOnboardingCompleted(completed: Boolean) {
+        sharedPreferences.edit().putBoolean("onboarding_completed", completed).apply()
     }
 }

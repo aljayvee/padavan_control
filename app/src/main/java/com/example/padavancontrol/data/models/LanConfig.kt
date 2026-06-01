@@ -14,6 +14,19 @@ data class StaticRoute(
     val interfaceName: String
 )
 
+data class SwitchPortConfig(
+    val portName: String, // "WAN", "LAN1", "LAN2", "LAN3", "LAN4"
+    val flowControl: Int = 0, // 0: TX/RX, 1: TX (Asymmetric Pause), 2: Disabled
+    val speedDuplex: Int = 0, // 0: Auto, 1: 1000M FD, 2: 100M FD, etc.
+    val linkState: String = "No link"
+)
+
+data class WolDevice(
+    val mac: String,
+    val name: String,
+    val vendor: String = ""
+)
+
 data class LanConfig(
     // LAN IP settings (Advanced_LAN_Content.asp)
     val lanIpAddr: String = "192.168.2.1",
@@ -32,20 +45,46 @@ data class LanConfig(
     val dhcpDns2: String = "",
     val dhcpDns3: String = "",
     val dhcpWins: String = "",
+    val dhcpDnsv6: String = "",
+    val dhcpVerbose: Int = 0,
+    val dnsmasqDnsmasqConf: String = "",
+    val dnsmasqDhcpConf: String = "",
+    val dnsmasqHosts: String = "",
     val dhcpStaticEnabled: Boolean = false,
     val dhcpStaticArp: Boolean = false,
     val staticLeases: List<StaticLease> = emptyList(),
     
     // IPTV (Advanced_IPTV_Content.asp)
     val mrEnable: Boolean = false,
+    val forceIgmp: Int = 0,
+    val udpxyPort: Int = 0,
+    val xupnpdPort: Int = 0,
+    val xupnpdUdpxy: Boolean = false,
     val igmpSnoop: Boolean = false,
+    val etherM2u: Int = 2,
+    val rtIgmpSnEnable: Int = 1,
+    val wlIgmpSnEnable: Int = 1,
+    val controlrateBroadcast: Int = 0,
     val mrUnsafe: Boolean = false,
     
     // Static Routes
+    val useDhcpRoutes: Boolean = false,
     val routeEnabled: Boolean = false,
     val staticRoutes: List<StaticRoute> = emptyList(),
     
     // Switch
     val greenEthernet: Boolean = false,
-    val eeeEnabled: Boolean = false
+    val eeeEnabled: Boolean = false,
+    val etherJumbo: Int = 0,
+    val portsConfig: List<SwitchPortConfig> = listOf(
+        SwitchPortConfig("WAN", 0, 0),
+        SwitchPortConfig("LAN1", 0, 0),
+        SwitchPortConfig("LAN2", 0, 0),
+        SwitchPortConfig("LAN3", 0, 0),
+        SwitchPortConfig("LAN4", 0, 0)
+    ),
+    
+    // Wake-on-LAN
+    val wolMac: String = "",
+    val wolDevices: List<WolDevice> = emptyList()
 )

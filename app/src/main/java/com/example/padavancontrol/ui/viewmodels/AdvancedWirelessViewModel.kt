@@ -21,7 +21,9 @@ data class AdvancedWirelessUiState(
     val isScanning: Boolean = false,
     val scanResults: List<WifiNetwork> = emptyList(),
     val errorMessage: String? = null,
-    val saveSuccess: Boolean = false
+    val saveSuccess: Boolean = false,
+    val loadProgress: Float = 0f,
+    val loadStatus: String = ""
 )
 
 class AdvancedWirelessViewModel(
@@ -35,16 +37,17 @@ class AdvancedWirelessViewModel(
     val toastMessage: SharedFlow<String> = _toastMessage.asSharedFlow()
 
     fun loadConfig(page: String, is5GHz: Boolean) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null, saveSuccess = false) }
+        _uiState.update { it.copy(isLoading = true, loadProgress = 0.2f, loadStatus = "Fetching Wireless configuration...", errorMessage = null, saveSuccess = false) }
         viewModelScope.launch {
             repository.getWirelessConfig(page, is5GHz).collect { result ->
                 result.onSuccess { config ->
-                    _uiState.update { it.copy(config = config, isLoading = false) }
+                    _uiState.update { it.copy(config = config, loadProgress = 1.0f, loadStatus = "Wireless settings loaded.", isLoading = false) }
                 }
                 result.onFailure { exception ->
                     _uiState.update { 
                         it.copy(
                             isLoading = false,
+                            loadProgress = 0f,
                             errorMessage = exception.message ?: "Failed to load wireless configuration"
                         ) 
                     }

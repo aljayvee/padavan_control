@@ -14,12 +14,21 @@ import com.example.padavancontrol.data.models.ScriptConfig
 import com.example.padavancontrol.network.PadavanApiService
 import com.example.padavancontrol.network.PadavanResponseParser
 import com.example.padavancontrol.network.RetrofitClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import java.io.IOException
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 
 interface PadavanRepository {
     suspend fun checkLogin(ip: String, user: String, pass: String): Boolean
@@ -36,14 +45,18 @@ interface PadavanRepository {
     suspend fun shutdownRouter(): Boolean
     suspend fun toggleWifi2G(enable: Boolean): Boolean
     suspend fun toggleWifi5G(enable: Boolean): Boolean
+    suspend fun blockClient(macAddress: String): Boolean
+    suspend fun unblockClient(index: Int): Boolean
     fun getWirelessConfig(page: String, is5GHz: Boolean): Flow<Result<WirelessConfig>>
     suspend fun saveWirelessConfig(page: String, config: WirelessConfig, is5GHz: Boolean): Boolean
     fun getLanConfig(page: String): Flow<Result<com.example.padavancontrol.data.models.LanConfig>>
     suspend fun saveLanConfig(page: String, config: com.example.padavancontrol.data.models.LanConfig): Boolean
-    fun getWanConfig(page: String): Flow<Result<com.example.padavancontrol.data.models.WanConfig>>
+    fun getWanConfig(page: String, forceRefresh: Boolean = false): Flow<Result<com.example.padavancontrol.data.models.WanConfig>>
     suspend fun saveWanConfig(page: String, config: com.example.padavancontrol.data.models.WanConfig): Boolean
     suspend fun addStaticLease(mac: String, ip: String, name: String): Boolean
     suspend fun deleteStaticLease(index: Int): Boolean
+    suspend fun addStaticRoute(dest: String, mask: String, gw: String, metric: Int, iface: String): Boolean
+    suspend fun deleteStaticRoute(index: Int): Boolean
     suspend fun addPortForwardRule(rule: com.example.padavancontrol.data.models.PortForwardRule): Boolean
     suspend fun deletePortForwardRule(index: Int): Boolean
     suspend fun sendWolPacket(mac: String): Boolean
@@ -77,8 +90,40 @@ class DefaultPadavanRepository(
     private var cachedAdmin = AdminConfig()
     private var cachedScript = ScriptConfig()
 
+    private val loadedWanPages = Collections.synchronizedSet(mutableSetOf<String>())
+    private val activeFetches = ConcurrentHashMap<String, Deferred<com.example.padavancontrol.data.models.WanConfig?>>()
+    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private val wanPages = listOf(
+        "Advanced_WAN_Content.asp",
+        "Advanced_IPv6_Content.asp",
+        "Advanced_VirtualServer_Content.asp",
+        "Advanced_Exposed_Content.asp",
+        "Advanced_DDNS_Content.asp"
+    )
+
+    private fun clearAllCaches() {
+        cachedWireless2g = WirelessConfig()
+        cachedWireless5g = WirelessConfig()
+        cachedLan = com.example.padavancontrol.data.models.LanConfig()
+        cachedWan = com.example.padavancontrol.data.models.WanConfig()
+        cachedFirewall = FirewallConfig()
+        cachedUsbShare = UsbShareConfig()
+        cachedAdmin = AdminConfig()
+        cachedScript = ScriptConfig()
+        loadedWanPages.clear()
+        activeFetches.forEach { (_, deferred) -> deferred.cancel() }
+        activeFetches.clear()
+    }
+
     private var prevCpuTotal = 0L
     private var prevCpuBusy = 0L
+    private var prevCpuUserTicks = 0L
+    private var prevCpuSysTicks = 0L
+    private var prevCpuNiceTicks = 0L
+    private var prevCpuIdleTicks = 0L
+    private var prevCpuIrqTicks = 0L
+    private var prevCpuSirqTicks = 0L
 
     private fun getService(): PadavanApiService {
         RetrofitClient.initialize(
@@ -99,6 +144,15 @@ class DefaultPadavanRepository(
             val service = RetrofitClient.getApiService()
             val response = service.checkLogin()
             if (response.isSuccessful) {
+                val bodyStr = response.body() ?: ""
+                if (bodyStr.contains("You cannot Login unless logout another user first", ignoreCase = true)) {
+                    throw IllegalStateException("Another device is currently logged in. Please log out from the other device first.")
+                }
+                
+                // Parse and save hardware model product_id
+                val hardwareModel = PadavanResponseParser.parseHardwareModel(bodyStr) ?: "UNKNOWN"
+                credentialStore.saveHardwareModel(hardwareModel)
+
                 credentialStore.saveCredentials(
                     user,
                     ip,
@@ -106,9 +160,13 @@ class DefaultPadavanRepository(
                     true,
                     credentialStore.isUseBiometric()
                 )
+                clearAllCaches()
                 return true
             }
         } catch (e: Exception) {
+            if (e is IllegalStateException) {
+                throw e // Re-throw to be caught by ViewModel
+            }
             e.printStackTrace()
         }
         return false
@@ -122,17 +180,52 @@ class DefaultPadavanRepository(
                 if (status != null) {
                     val deltaTotal = status.cpuTotal - prevCpuTotal
                     val deltaBusy = status.cpuBusy - prevCpuBusy
+                    val deltaUser = status.cpuUserTicks - prevCpuUserTicks
+                    val deltaSys = status.cpuSysTicks - prevCpuSysTicks
+                    val deltaNice = status.cpuNiceTicks - prevCpuNiceTicks
+                    val deltaIdle = status.cpuIdleTicks - prevCpuIdleTicks
+                    val deltaIrq = status.cpuIrqTicks - prevCpuIrqTicks
+                    val deltaSirq = status.cpuSirqTicks - prevCpuSirqTicks
 
-                    val finalCpuUsage = if (prevCpuTotal > 0L && deltaTotal > 0L) {
-                        (deltaBusy * 100 / deltaTotal).coerceIn(0, 100).toInt()
-                    } else {
-                        0
+                    fun calcPercent(deltaVal: Long): Int {
+                        return if (prevCpuTotal > 0L && deltaTotal > 0L) {
+                            (deltaVal * 100 / deltaTotal).coerceIn(0, 100).toInt()
+                        } else {
+                            0
+                        }
                     }
+
+                    val finalCpuUsage = calcPercent(deltaBusy)
+                    val userPercent = calcPercent(deltaUser)
+                    val sysPercent = calcPercent(deltaSys)
+                    val nicePercent = calcPercent(deltaNice)
+                    val idlePercent = if (prevCpuTotal > 0L && deltaTotal > 0L) {
+                        calcPercent(deltaIdle)
+                    } else {
+                        100
+                    }
+                    val irqPercent = calcPercent(deltaIrq)
+                    val sirqPercent = calcPercent(deltaSirq)
 
                     prevCpuTotal = status.cpuTotal
                     prevCpuBusy = status.cpuBusy
+                    prevCpuUserTicks = status.cpuUserTicks
+                    prevCpuSysTicks = status.cpuSysTicks
+                    prevCpuNiceTicks = status.cpuNiceTicks
+                    prevCpuIdleTicks = status.cpuIdleTicks
+                    prevCpuIrqTicks = status.cpuIrqTicks
+                    prevCpuSirqTicks = status.cpuSirqTicks
 
-                    val updatedStatus = status.copy(cpuUsage = finalCpuUsage)
+                    val updatedStatus = status.copy(
+                        cpuUsage = finalCpuUsage,
+                        cpuBusyPercent = finalCpuUsage,
+                        cpuUserPercent = userPercent,
+                        cpuSysPercent = sysPercent,
+                        cpuNicePercent = nicePercent,
+                        cpuIdlePercent = idlePercent,
+                        cpuIrqPercent = irqPercent,
+                        cpuSirqPercent = sirqPercent
+                    )
                     emit(Result.success(updatedStatus))
                 } else {
                     emit(Result.failure(IOException("Failed to parse system status")))
@@ -165,12 +258,28 @@ class DefaultPadavanRepository(
 
     override fun getLanClients(): Flow<Result<List<LanClient>>> = flow {
         try {
-            val response = getService().getLanClients()
-            if (response.isSuccessful && response.body() != null) {
-                val clients = PadavanResponseParser.parseLanClients(response.body()!!)
-                emit(Result.success(clients))
-            } else {
-                emit(Result.failure(IOException("HTTP Error: ${response.code()}")))
+            coroutineScope {
+                val clientsDeferred = async { getService().getLanClients() }
+                val w2gDeferred = async {
+                    try { getService().getPageContent("Main_WStatus2g_Content.asp") } catch (e: Exception) { null }
+                }
+                val w5gDeferred = async {
+                    try { getService().getPageContent("Main_WStatus_Content.asp") } catch (e: Exception) { null }
+                }
+
+                val clientsResponse = clientsDeferred.await()
+                val w2gResponse = w2gDeferred.await()
+                val w5gResponse = w5gDeferred.await()
+
+                if (clientsResponse.isSuccessful && clientsResponse.body() != null) {
+                    val clientsHtml = clientsResponse.body()!!
+                    val w2gHtml = w2gResponse?.body() ?: ""
+                    val w5gHtml = w5gResponse?.body() ?: ""
+                    val clients = PadavanResponseParser.parseLanClients(clientsHtml, w2gHtml, w5gHtml)
+                    emit(Result.success(clients))
+                } else {
+                    emit(Result.failure(IOException("HTTP Error: ${clientsResponse.code()}")))
+                }
             }
         } catch (e: Exception) {
             emit(Result.failure(e))
@@ -297,6 +406,46 @@ class DefaultPadavanRepository(
         }
     }
 
+    override suspend fun blockClient(macAddress: String): Boolean {
+        val fields = mapOf(
+            "current_page" to "/device-map/clients.asp",
+            "next_page" to "/device-map/clients.asp",
+            "modified" to "0",
+            "action_mode" to " Add ",
+            "action_wait" to "",
+            "action_script" to "",
+            "macfilter_enable_x" to "1",
+            "macfilter_list_x_0" to macAddress,
+            "macfilter_time_x_0" to "00002359",
+            "macfilter_date_x_0" to "1111111"
+        )
+        return try {
+            getService().applySettings(fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun unblockClient(index: Int): Boolean {
+        val fields = mapOf(
+            "current_page" to "/device-map/clients.asp",
+            "next_page" to "/device-map/clients.asp",
+            "modified" to "0",
+            "action_mode" to " Del ",
+            "action_wait" to "",
+            "action_script" to "",
+            "macfilter_enable_x" to "1",
+            "MFList_s" to index.toString()
+        )
+        return try {
+            getService().applySettings(fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     override fun getWirelessConfig(page: String, is5GHz: Boolean): Flow<Result<WirelessConfig>> = flow {
         try {
             val response = getService().getPageContent(page)
@@ -320,7 +469,7 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
 
             fields["action_mode"] = " Apply "
-            fields["current_page"] = "/$page"
+            fields["current_page"] = page
             fields["next_page"] = ""
             fields["sid_list"] = sidList
 
@@ -334,6 +483,11 @@ class DefaultPadavanRepository(
                 fields["${prefix}guest_wpa_mode"] = config.guestWpaMode
                 fields["${prefix}guest_crypto"] = config.guestCrypto
                 fields["${prefix}guest_wpa_psk"] = config.guestWpaPsk
+                fields["${prefix}guest_date_x"] = config.guestDate
+                fields["${prefix}guest_time_x"] = config.guestTimeWorkweek
+                fields["${prefix}guest_time2_x"] = config.guestTimeWeekend
+                fields["${prefix}guest_mcs_mode"] = config.guestMcsMode
+                fields["${prefix}guest_macrule"] = if (config.guestMacRule) "1" else "0"
             } else if (page.contains("WMode", ignoreCase = true)) {
                 val mode = config.modeX
                 fields["action_mode"] = if (mode == "1" || mode == "2") " Restart " else " Apply "
@@ -346,6 +500,37 @@ class DefaultPadavanRepository(
                 fields["${prefix}sta_wpa_psk"] = config.staWpaPsk
                 fields["${prefix}sta_auto"] = config.staAuto
                 fields["${prefix}channel"] = config.channel
+            } else if (page.contains("ACL", ignoreCase = true) || page.contains("MACFilter", ignoreCase = true)) {
+                fields["${prefix}macmode"] = config.macFilterMode
+                val macListStr = config.macFilterRules.joinToString("&#62") { "<${it.mac}<${it.desc}" }
+                fields["${prefix}maclist_x"] = macListStr
+            } else if (page.contains("WSecurity", ignoreCase = true) || page.contains("RADIUS", ignoreCase = true)) {
+                fields["${prefix}radius_ipaddr"] = config.radiusIp
+                fields["${prefix}radius_port"] = config.radiusPort.toString()
+                fields["${prefix}radius_key"] = config.radiusKey
+            } else if (page.contains("WAdvanced", ignoreCase = true) || page.contains("Professional", ignoreCase = true)) {
+                fields["${prefix}IGMPSnoop"] = if (config.igmpSnooping) "1" else "0"
+                fields["${prefix}wme"] = if (config.wmmCapable) "1" else "0"
+                fields["${prefix}ap_isolate"] = if (config.apIsolate) "1" else "0"
+                fields["${prefix}bcn"] = config.bcnInterval.toString()
+                fields["${prefix}dtim"] = config.dtimInterval.toString()
+                fields["${prefix}frag"] = config.fragThresh.toString()
+                fields["${prefix}rts"] = config.rtsThresh.toString()
+                fields["${prefix}TxBurst"] = if (config.txBurst) "1" else "0"
+                fields["${prefix}GreenAP"] = if (config.greenAp) "1" else "0"
+                fields["${prefix}TxPower"] = config.txPower.toString()
+                fields["${prefix}mcs_mode"] = config.mcsMode
+                fields["${prefix}KickStaRssiLow"] = config.kickStaRssiLow.toString()
+                fields["${prefix}AssocReqRssiThres"] = config.assocReqRssiThres.toString()
+                fields["${prefix}country_code"] = config.countryCode
+                fields["${prefix}stream_tx"] = config.streamTx
+                fields["${prefix}stream_rx"] = config.streamRx
+                fields["${prefix}preamble"] = config.preamble
+                fields["${prefix}PktAggregate"] = if (config.pktAggregate) "1" else "0"
+                fields["${prefix}HT_RDG"] = if (config.htRdg) "1" else "0"
+                fields["${prefix}HT_AutoBA"] = if (config.htAutoBA) "1" else "0"
+                fields["${prefix}HT_AMSDU"] = if (config.htAmsdu) "1" else "0"
+                fields["${prefix}APSDCapable"] = if (config.wmmApsd) "1" else "0"
             } else {
                 fields["${prefix}radio_x"] = if (config.isEnabled) "1" else "0"
                 fields["${prefix}ssid"] = config.ssid
@@ -357,14 +542,19 @@ class DefaultPadavanRepository(
                 fields["${prefix}wpa_mode"] = config.wpaMode
                 fields["${prefix}crypto"] = config.crypto
                 fields["${prefix}wpa_psk"] = config.wpaPsk
-                fields["${prefix}TxPower"] = config.txPower.toString()
+                fields["${prefix}radio_date_x"] = config.radioDate
+                fields["${prefix}radio_time_x"] = config.radioTimeWorkweek
+                fields["${prefix}radio_time2_x"] = config.radioTimeWeekend
+                fields["${prefix}HT_EXTCHA"] = config.extChannel
+                fields["${prefix}wpa_gtk_rekey"] = config.wpaGtkRekey.toString()
                 fields["${prefix}mcs_mode"] = config.mcsMode
                 fields["${prefix}KickStaRssiLow"] = config.kickStaRssiLow.toString()
                 fields["${prefix}AssocReqRssiThres"] = config.assocReqRssiThres.toString()
                 fields["${prefix}country_code"] = config.countryCode
+                fields["${prefix}TxPower"] = config.txPower.toString()
             }
 
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             if (response.isSuccessful) {
                 if (is5GHz) cachedWireless5g = config else cachedWireless2g = config
                 true
@@ -396,19 +586,24 @@ class DefaultPadavanRepository(
         return try {
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Apply "
-            fields["current_page"] = "/$page"
+            fields["current_page"] = page
             fields["next_page"] = ""
             
             if (page.contains("LAN", ignoreCase = true)) {
-                fields["action_mode"] = " Restart "
+                fields["action_mode"] = " Apply "
                 fields["sid_list"] = "LANHostConfig;"
                 fields["lan_ipaddr"] = config.lanIpAddr
                 fields["lan_netmask"] = config.lanNetmask
-                fields["lan_gateway"] = config.lanGateway
                 fields["lan_stp"] = if (config.lanStp) "1" else "0"
+                fields["dhcp_start"] = config.dhcpStart
+                fields["dhcp_end"] = config.dhcpEnd
             } else if (page.contains("DHCP", ignoreCase = true)) {
-                fields["action_mode"] = " Restart "
+                fields["action_mode"] = " Apply "
                 fields["sid_list"] = "LANHostConfig;"
+                fields["next_page"] = "Advanced_GWStaticRoute_Content.asp"
+                fields["group_id"] = "ManualDHCPList"
+                fields["lan_ipaddr"] = config.lanIpAddr
+                fields["lan_netmask"] = config.lanNetmask
                 fields["dhcp_enable_x"] = if (config.dhcpEnabled) "1" else "0"
                 fields["lan_domain"] = config.dhcpDomain
                 fields["dhcp_start"] = config.dhcpStart
@@ -418,24 +613,50 @@ class DefaultPadavanRepository(
                 fields["dhcp_dns1_x"] = config.dhcpDns1
                 fields["dhcp_dns2_x"] = config.dhcpDns2
                 fields["dhcp_dns3_x"] = config.dhcpDns3
+                fields["dhcp_dnsv6_x"] = config.dhcpDnsv6
                 fields["dhcp_wins_x"] = config.dhcpWins
+                fields["dhcp_verbose"] = config.dhcpVerbose.toString()
+                fields["dnsmasq.dnsmasq.conf"] = config.dnsmasqDnsmasqConf
+                fields["dnsmasq.dhcp.conf"] = config.dnsmasqDhcpConf
+                fields["dnsmasq.hosts"] = config.dnsmasqHosts
                 fields["dhcp_static_x"] = if (config.dhcpStaticEnabled) "1" else "0"
                 fields["dhcp_static_arp"] = if (config.dhcpStaticArp) "1" else "0"
+                fields["dhcp_staticnum_x_0"] = "0"
             } else if (page.contains("IPTV", ignoreCase = true)) {
+                fields["action_mode"] = " Apply "
                 fields["sid_list"] = "RouterConfig;LANHostConfig;WLANConfig11a;WLANConfig11b;"
                 fields["mr_enable_x"] = if (config.mrEnable) "1" else "0"
+                fields["force_igmp"] = config.forceIgmp.toString()
+                fields["udpxy_enable_x"] = config.udpxyPort.toString()
+                fields["xupnpd_enable_x"] = config.xupnpdPort.toString()
+                fields["xupnpd_udpxy"] = if (config.xupnpdUdpxy) "1" else "0"
                 fields["ether_igmp"] = if (config.igmpSnoop) "1" else "0"
+                fields["ether_m2u"] = config.etherM2u.toString()
+                fields["rt_IgmpSnEnable"] = config.rtIgmpSnEnable.toString()
+                fields["wl_IgmpSnEnable"] = config.wlIgmpSnEnable.toString()
+                fields["controlrate_broadcast"] = config.controlrateBroadcast.toString()
             } else if (page.contains("Route", ignoreCase = true)) {
                 fields["action_mode"] = if (config.routeEnabled) " Restart " else " Apply "
                 fields["sid_list"] = "RouterConfig;"
+                fields["group_id"] = "GWStatic"
+                fields["dr_enable_x"] = if (config.useDhcpRoutes) "1" else "0"
                 fields["sr_enable_x"] = if (config.routeEnabled) "1" else "0"
+                fields["sr_num_x_0"] = "0"
             } else if (page.contains("Switch", ignoreCase = true)) {
-                fields["sid_list"] = "RouterConfig;"
+                fields["action_mode"] = " Apply "
+                fields["sid_list"] = "LANHostConfig;"
                 fields["ether_green"] = if (config.greenEthernet) "1" else "0"
                 fields["ether_eee"] = if (config.eeeEnabled) "1" else "0"
+                fields["ether_jumbo"] = config.etherJumbo.toString()
+                
+                config.portsConfig.forEach { portConfig ->
+                    val suffix = portConfig.portName.lowercase()
+                    fields["ether_flow_$suffix"] = portConfig.flowControl.toString()
+                    fields["ether_link_$suffix"] = portConfig.speedDuplex.toString()
+                }
             }
             
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             if (response.isSuccessful) {
                 cachedLan = config
                 true
@@ -453,14 +674,14 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Add "
             fields["group_id"] = "ManualDHCPList"
-            fields["current_page"] = "/Advanced_DHCP_Content.asp"
+            fields["current_page"] = "Advanced_DHCP_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "LANHostConfig;"
             fields["dhcp_staticmac_x_0"] = mac
             fields["dhcp_staticip_x_0"] = ip
             fields["dhcp_staticname_x_0"] = name
             
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             response.isSuccessful
         } catch (e: Exception) {
             false
@@ -472,39 +693,170 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Del "
             fields["group_id"] = "ManualDHCPList"
-            fields["current_page"] = "/Advanced_DHCP_Content.asp"
+            fields["current_page"] = "Advanced_DHCP_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "LANHostConfig;"
             fields["ManualDHCPList"] = ""
             fields["ManualDHCPList_s"] = index.toString()
             
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             response.isSuccessful
         } catch (e: Exception) {
             false
         }
     }
 
-    override fun getWanConfig(page: String): Flow<Result<com.example.padavancontrol.data.models.WanConfig>> = flow {
-        try {
-            val response = getService().getPageContent(page)
-            if (response.isSuccessful && response.body() != null) {
-                val config = PadavanResponseParser.parseWanConfig(response.body()!!, cachedWan)
-                cachedWan = config
-                emit(Result.success(config))
-            } else {
-                emit(Result.failure(IOException("HTTP Error: ${response.code()}")))
-            }
+    override suspend fun addStaticRoute(dest: String, mask: String, gw: String, metric: Int, iface: String): Boolean {
+        return try {
+            val fields = mutableMapOf<String, String>()
+            fields["action_mode"] = " Add "
+            fields["current_page"] = "Advanced_GWStaticRoute_Content.asp"
+            fields["next_page"] = ""
+            fields["sid_list"] = "RouterConfig;"
+            fields["group_id"] = "GWStatic"
+            fields["sr_ipaddr_x_0"] = dest
+            fields["sr_netmask_x_0"] = mask
+            fields["sr_gateway_x_0"] = gw
+            fields["sr_matric_x_0"] = metric.toString()
+            fields["sr_if_x_0"] = iface
+            
+            val response = getService().applySettings(fields)
+            response.isSuccessful
         } catch (e: Exception) {
-            emit(Result.failure(e))
+            e.printStackTrace()
+            false
         }
+    }
+
+    override suspend fun deleteStaticRoute(index: Int): Boolean {
+        return try {
+            val fields = mutableMapOf<String, String>()
+            fields["action_mode"] = " Del "
+            fields["current_page"] = "Advanced_GWStaticRoute_Content.asp"
+            fields["next_page"] = ""
+            fields["sid_list"] = "RouterConfig;"
+            fields["group_id"] = "GWStatic"
+            fields["GWStatic"] = ""
+            fields["GWStatic_s"] = index.toString()
+            
+            val response = getService().applySettings(fields)
+            response.isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    private suspend fun getOrFetchPage(page: String, forceRefresh: Boolean): com.example.padavancontrol.data.models.WanConfig? {
+        if (!forceRefresh && loadedWanPages.contains(page)) {
+            return cachedWan
+        }
+
+        var deferred = activeFetches[page]
+        if (deferred == null || forceRefresh) {
+            if (forceRefresh) {
+                deferred?.cancel()
+            }
+
+            val newDeferred = repositoryScope.async {
+                try {
+                    val response = getService().getPageContent(page)
+                    if (response.isSuccessful && response.body() != null) {
+                        synchronized(this@DefaultPadavanRepository) {
+                            val config = PadavanResponseParser.parseWanConfig(response.body()!!, cachedWan)
+                            cachedWan = config
+                            loadedWanPages.add(page)
+                            config
+                        }
+                    } else {
+                        null
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                } finally {
+                    activeFetches.remove(page)
+                }
+            }
+            activeFetches[page] = newDeferred
+            deferred = newDeferred
+        }
+
+        return try {
+            deferred.await()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun triggerBackgroundPreFetch(currentPage: String, forceRefresh: Boolean) {
+        repositoryScope.launch {
+            val remainingPages = wanPages.filter { it != currentPage && (forceRefresh || !loadedWanPages.contains(it)) }
+            remainingPages.forEach { page ->
+                launch {
+                    getOrFetchPage(page, forceRefresh = false)
+                }
+            }
+        }
+    }
+
+    override fun getWanConfig(page: String, forceRefresh: Boolean): Flow<Result<com.example.padavancontrol.data.models.WanConfig>> = flow {
+        if (!forceRefresh && loadedWanPages.contains(page)) {
+            emit(Result.success(cachedWan.copy(loadProgress = 1.0f, loadStatus = "Loaded from cache")))
+            repositoryScope.launch {
+                getOrFetchPage(page, forceRefresh = true)
+            }
+            return@flow
+        }
+
+        emit(Result.success(cachedWan.copy(loadProgress = 0.1f, loadStatus = "Connecting to router gateway...")))
+
+        emit(Result.success(cachedWan.copy(loadProgress = 0.2f, loadStatus = "Fetching active page settings...")))
+        val config = getOrFetchPage(page, forceRefresh)
+        if (config == null) {
+            emit(Result.failure(IOException("Failed to fetch WAN configuration for $page")))
+            return@flow
+        }
+
+        emit(Result.success(cachedWan.copy(loadProgress = 0.4f, loadStatus = "Active page loaded. Fetching remaining settings...")))
+
+        val remainingPages = wanPages.filter { it != page }
+        coroutineScope {
+            val channel = Channel<Pair<String, Boolean>>()
+            remainingPages.forEach { otherPage ->
+                launch {
+                    val success = getOrFetchPage(otherPage, forceRefresh) != null
+                    channel.send(Pair(otherPage, success))
+                }
+            }
+
+            repeat(remainingPages.size) { index ->
+                val (completedPage, success) = channel.receive()
+                val count = index + 1
+                val nextProgress = 0.4f + (count * 0.15f)
+                val progressVal = if (nextProgress > 1.0f) 1.0f else nextProgress
+                val statusText = when (completedPage) {
+                    "Advanced_WAN_Content.asp" -> "Internet Connection loaded..."
+                    "Advanced_IPv6_Content.asp" -> "IPv6 Protocol settings loaded..."
+                    "Advanced_VirtualServer_Content.asp" -> "Port Forwarding rules loaded..."
+                    "Advanced_Exposed_Content.asp" -> "DMZ Host settings loaded..."
+                    "Advanced_DDNS_Content.asp" -> "DDNS profile settings loaded..."
+                    else -> "Settings page loaded..."
+                }
+                emit(Result.success(cachedWan.copy(loadProgress = progressVal, loadStatus = statusText)))
+            }
+            channel.close()
+        }
+
+        emit(Result.success(cachedWan.copy(loadProgress = 1.0f, loadStatus = "WAN Configuration successfully merged.")))
     }.flowOn(Dispatchers.IO)
 
     override suspend fun saveWanConfig(page: String, config: com.example.padavancontrol.data.models.WanConfig): Boolean {
         return try {
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Apply "
-            fields["current_page"] = "/$page"
+            fields["current_page"] = page
             fields["next_page"] = ""
             
             if (page.contains("WAN", ignoreCase = true)) {
@@ -516,6 +868,22 @@ class DefaultPadavanRepository(
                 fields["wan_dnsenable_x"] = if (config.wanDnsEnable) "1" else "0"
                 fields["wan_dns1_x"] = config.wanDns1
                 fields["wan_dns2_x"] = config.wanDns2
+                fields["hw_nat_mode"] = config.hwNatMode
+                fields["sfe_enable"] = config.sfeEnable
+                fields["gw_arp_ping"] = if (config.gwArpPing) "1" else "0"
+                fields["wan_auth_mode"] = config.wanAuthMode
+                fields["wan_hostname"] = config.wanHostname
+                fields["wan_vci"] = config.wanVci
+                fields["wan_hwaddr_x"] = config.wanHwaddr
+                fields["wan_ttl_fix"] = if (config.wanTtlFix) "1" else "0"
+                fields["wan_ttl_value"] = config.wanTtlValue
+                fields["wan_stb_x"] = config.wanStbPort
+                fields["wan_stb_iso"] = config.wanStbIso
+                fields["vlan_filter"] = if (config.vlanFilter) "1" else "0"
+                fields["vlan_vid_cpu"] = config.vlanVidCpu
+                fields["vlan_pri_cpu"] = config.vlanPriCpu
+                fields["vlan_vid_iptv"] = config.vlanVidIptv
+                fields["vlan_pri_iptv"] = config.vlanPriIptv
                 
                 if (config.wanProto == "pppoe") {
                     fields["wan_pppoe_username"] = config.pppoeUser
@@ -529,10 +897,19 @@ class DefaultPadavanRepository(
                 fields["action_mode"] = if (config.portForwardEnabled) " Restart " else " Apply "
                 fields["sid_list"] = "IPConnection;"
                 fields["upnp_enable_x"] = if (config.upnpEnabled) "1" else "0"
+                fields["upnp_proto"] = config.upnpProto
                 fields["upnp_secure"] = if (config.upnpSecure) "1" else "0"
+                fields["upnp_eport_min"] = config.upnpEportMin
+                fields["upnp_eport_max"] = config.upnpEportMax
+                fields["upnp_iport_min"] = config.upnpIportMin
+                fields["upnp_iport_max"] = config.upnpIportMax
+                fields["upnp_clean_int"] = config.upnpCleanInt
+                fields["upnp_clean_min"] = config.upnpCleanMin
                 fields["vts_enable_x"] = if (config.portForwardEnabled) "1" else "0"
-                fields["dmz_enable_x"] = if (config.dmzEnabled) "1" else "0"
-                fields["dmz_ipaddr"] = config.dmzIp
+            } else if (page.contains("Exposed", ignoreCase = true)) {
+                fields["sid_list"] = "IPConnection;PPPConnection;"
+                fields["dmz_ip"] = config.dmzIp
+                fields["sp_battle_ips"] = if (config.dmzSpBattle) "1" else "0"
             } else if (page.contains("DDNS", ignoreCase = true)) {
                 fields["sid_list"] = "LANHostConfig;"
                 fields["ddns_enable_x"] = if (config.ddnsEnabled) "1" else "0"
@@ -540,12 +917,73 @@ class DefaultPadavanRepository(
                 fields["ddns_username_x"] = config.ddnsUser
                 fields["ddns_passwd_x"] = config.ddnsPass
                 fields["ddns_hostname_x"] = config.ddnsHostName
+                fields["ddns_hostname2_x"] = config.ddnsHostName2
+                fields["ddns_hostname3_x"] = config.ddnsHostName3
+                fields["ddns_ssl"] = config.ddnsSsl
+                fields["ddns_wildcard_x"] = config.ddnsWildcard
+                fields["ddns2_server"] = config.ddns2Server
+                fields["ddns2_hname"] = config.ddns2HostName
+                fields["ddns2_user"] = config.ddns2User
+                fields["ddns2_pass"] = config.ddns2Pass
+                fields["ddns2_ssl"] = config.ddns2Ssl
+                fields["ddns2_wildcard_x"] = config.ddns2Wildcard
+                fields["ddns_source"] = config.ddnsSource
+                fields["ddns_checkip"] = config.ddnsCheckIp
+                fields["ddns2_checkip"] = config.ddns2CheckIp
+                fields["ddns_period"] = config.ddnsPeriod
+                fields["ddns_forced"] = config.ddnsForced
+                fields["ddns_ipv6"] = config.ddnsIpv6
+                fields["ddns_verbose"] = config.ddnsVerbose
             } else if (page.contains("IPv6", ignoreCase = true)) {
                 fields["sid_list"] = "IP6Connection;"
+                
+                // Service Type
                 fields["ip6_service"] = config.ipv6Proto
+                fields["ipv6_service"] = config.ipv6Proto
+                
+                fields["ip6_wan_dhcp"] = config.ipv6WanDhcp
+                fields["ip6_dns_auto"] = if (config.ipv6DnsAuto) "1" else "0"
+                
+                // DNS
+                fields["ip6_dns1"] = config.ipv6Dns1
+                fields["ipv6_dns1_x"] = config.ipv6Dns1
+                fields["ip6_dns2"] = config.ipv6Dns2
+                fields["ipv6_dns2_x"] = config.ipv6Dns2
+                fields["ip6_dns3"] = config.ipv6Dns3
+                fields["ipv6_dns3_x"] = config.ipv6Dns3
+                
+                // MTU & Tunnel Settings
+                fields["ip6_sit_mtu"] = config.ipv6Mtu.toString()
+                fields["ipv6_tun_mtu"] = config.ipv6Mtu.toString()
+                
+                fields["ip6_6to4_relay"] = config.ipv66to4Relay
+                fields["ipv6_relay"] = config.ipv66to4Relay
+                
+                if (config.ipv6Proto == "6to4") {
+                    fields["ip6_sit_mtu"] = config.ipv66to4Mtu.toString()
+                    fields["ipv6_tun_v4mtu"] = config.ipv66to4Mtu.toString()
+                }
+                
+                // 6rd settings
+                fields["ip6_wan_addr"] = config.ipv66rdPrefix
+                fields["ipv6_6rd_prefix"] = config.ipv66rdPrefix
+                fields["ip6_wan_size"] = config.ipv66rdPrefixLen.toString()
+                fields["ipv6_6rd_prefixlen"] = config.ipv66rdPrefixLen.toString()
+                fields["ip6_6rd_relay"] = config.ipv66rdRouter
+                fields["ipv6_6rd_router"] = config.ipv66rdRouter
+                fields["ip6_6rd_size"] = config.ipv66rdIp4Mtu.toString()
+                fields["ipv6_6rd_ip4size"] = config.ipv66rdIp4Mtu.toString()
+                
+                // LAN settings
+                fields["ip6_lan_auto"] = if (config.ipv6LanAuto) "1" else "0"
+                fields["ip6_lan_radv"] = if (config.ipv6LanRadv) "1" else "0"
+                fields["ip6_lan_dhcp"] = config.ipv6LanDhcp
+                fields["ip6_lan_sfps"] = config.ipv6LanSfps
+                fields["ip6_lan_sfpe"] = config.ipv6LanSfpe
+                fields["ip6_lan_sflt"] = config.ipv6LanSflt
             }
             
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             if (response.isSuccessful) {
                 cachedWan = config
                 true
@@ -563,7 +1001,7 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Add "
             fields["group_id"] = "VSList"
-            fields["current_page"] = "/Advanced_VirtualServer_Content.asp"
+            fields["current_page"] = "Advanced_VirtualServer_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "IPConnection;"
             fields["vts_name_x_0"] = rule.name
@@ -573,7 +1011,7 @@ class DefaultPadavanRepository(
             fields["vts_proto_x_0"] = rule.protocol
             fields["vts_desc_x_0"] = rule.desc
             
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             response.isSuccessful
         } catch (e: Exception) {
             false
@@ -585,13 +1023,13 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Del "
             fields["group_id"] = "VSList"
-            fields["current_page"] = "/Advanced_VirtualServer_Content.asp"
+            fields["current_page"] = "Advanced_VirtualServer_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "IPConnection;"
             fields["VSList"] = ""
             fields["VSList_s"] = index.toString()
             
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             response.isSuccessful
         } catch (e: Exception) {
             false
@@ -626,7 +1064,7 @@ class DefaultPadavanRepository(
         return try {
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Apply "
-            fields["current_page"] = "/$page"
+            fields["current_page"] = page
             fields["next_page"] = ""
             fields["sid_list"] = "FirewallConfig;"
 
@@ -684,7 +1122,7 @@ class DefaultPadavanRepository(
                 fields["filter_lw_icmp_x"] = config.filterLwIcmp
             }
 
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             if (response.isSuccessful) {
                 cachedFirewall = config
                 true
@@ -716,7 +1154,7 @@ class DefaultPadavanRepository(
         return try {
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Apply "
-            fields["current_page"] = "/$page"
+            fields["current_page"] = page
             fields["next_page"] = ""
 
             if (page.contains("samba", ignoreCase = true) || page.contains("others", ignoreCase = true)) {
@@ -769,7 +1207,7 @@ class DefaultPadavanRepository(
                 fields["modem_zcd"] = config.modemZcd
             }
 
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             if (response.isSuccessful) {
                 cachedUsbShare = config
                 true
@@ -787,7 +1225,7 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Add "
             fields["group_id"] = "LWFilterList"
-            fields["current_page"] = "/Advanced_Firewall_Content.asp"
+            fields["current_page"] = "Advanced_Firewall_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "FirewallConfig;"
             fields["filter_lw_srcip_x_0"] = rule.srcIp
@@ -797,7 +1235,7 @@ class DefaultPadavanRepository(
             fields["filter_lw_proto_x_0"] = rule.proto
             fields["filter_lw_protono_x_0"] = rule.protoNo
 
-            getService().applySettings(fields).isSuccessful
+            applyAndCommitSettings(fields).isSuccessful
         } catch (e: Exception) {
             false
         }
@@ -808,13 +1246,13 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Del "
             fields["group_id"] = "LWFilterList"
-            fields["current_page"] = "/Advanced_Firewall_Content.asp"
+            fields["current_page"] = "Advanced_Firewall_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "FirewallConfig;"
             fields["LWFilterList"] = ""
             fields["LWFilterList_s"] = index.toString()
 
-            getService().applySettings(fields).isSuccessful
+            applyAndCommitSettings(fields).isSuccessful
         } catch (e: Exception) {
             false
         }
@@ -825,12 +1263,12 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Add "
             fields["group_id"] = "UrlList"
-            fields["current_page"] = "/Advanced_URLFilter_Content.asp"
+            fields["current_page"] = "Advanced_URLFilter_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "FirewallConfig;"
             fields["url_keyword_x_0"] = keyword
 
-            getService().applySettings(fields).isSuccessful
+            applyAndCommitSettings(fields).isSuccessful
         } catch (e: Exception) {
             false
         }
@@ -841,13 +1279,13 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Del "
             fields["group_id"] = "UrlList"
-            fields["current_page"] = "/Advanced_URLFilter_Content.asp"
+            fields["current_page"] = "Advanced_URLFilter_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "FirewallConfig;"
             fields["UrlList"] = ""
             fields["UrlList_s"] = index.toString()
 
-            getService().applySettings(fields).isSuccessful
+            applyAndCommitSettings(fields).isSuccessful
         } catch (e: Exception) {
             false
         }
@@ -858,14 +1296,14 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Add "
             fields["group_id"] = "MFList"
-            fields["current_page"] = "/Advanced_MACFilter_Content.asp"
+            fields["current_page"] = "Advanced_MACFilter_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "FirewallConfig;"
             fields["macfilter_list_x_0"] = rule.mac
             fields["macfilter_time_x_0"] = rule.time
             fields["macfilter_date_x_0"] = rule.date
 
-            getService().applySettings(fields).isSuccessful
+            applyAndCommitSettings(fields).isSuccessful
         } catch (e: Exception) {
             false
         }
@@ -876,13 +1314,13 @@ class DefaultPadavanRepository(
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Del "
             fields["group_id"] = "MFList"
-            fields["current_page"] = "/Advanced_MACFilter_Content.asp"
+            fields["current_page"] = "Advanced_MACFilter_Content.asp"
             fields["next_page"] = ""
             fields["sid_list"] = "FirewallConfig;"
             fields["MFList"] = ""
             fields["MFList_s"] = index.toString()
 
-            getService().applySettings(fields).isSuccessful
+            applyAndCommitSettings(fields).isSuccessful
         } catch (e: Exception) {
             false
         }
@@ -907,7 +1345,7 @@ class DefaultPadavanRepository(
         return try {
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Apply "
-            fields["current_page"] = "/$page"
+            fields["current_page"] = if (!page.startsWith("/")) "/$page" else page
             fields["next_page"] = ""
 
             if (page.contains("System", ignoreCase = true)) {
@@ -922,6 +1360,7 @@ class DefaultPadavanRepository(
                 fields["time_zone"] = config.timezone
                 fields["ntp_server0"] = config.ntpServer1
                 fields["ntp_server1"] = config.ntpServer2
+                fields["action_script"] = "restart_httpd"
             } else if (page.contains("Services", ignoreCase = true)) {
                 fields["sid_list"] = "LANHostConfig;General;Storage;"
                 fields["telnetd"] = if (config.enableTelnet) "1" else "0"
@@ -939,9 +1378,31 @@ class DefaultPadavanRepository(
                 fields["led_pwr_mode"] = config.ledPowerMode
             }
 
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             if (response.isSuccessful) {
                 cachedAdmin = config
+                
+                // Update CredentialStore if username or password was changed
+                if (page.contains("System", ignoreCase = true) && (config.adminPass.isNotEmpty() || config.adminUser != credentialStore.getUsername())) {
+                    val newPass = if (config.adminPass.isNotEmpty()) config.adminPass else credentialStore.getPassword()
+                    val newUser = config.adminUser
+                    
+                    credentialStore.saveCredentials(
+                        newUser,
+                        credentialStore.getRouterIp(),
+                        newPass,
+                        credentialStore.isRememberCredentials(),
+                        credentialStore.isUseBiometric()
+                    )
+                    
+                    // Force Retrofit to update its credentials for any subsequent calls
+                    RetrofitClient.forceReinitialize(
+                        credentialStore.getRouterIp(),
+                        { newUser },
+                        { newPass }
+                    )
+                }
+                
                 true
             } else {
                 false
@@ -971,7 +1432,7 @@ class DefaultPadavanRepository(
         return try {
             val fields = mutableMapOf<String, String>()
             fields["action_mode"] = " Apply "
-            fields["current_page"] = "/$page"
+            fields["current_page"] = page
             fields["next_page"] = ""
 
             if (page.contains("Scripts", ignoreCase = true)) {
@@ -991,7 +1452,7 @@ class DefaultPadavanRepository(
                 fields["di_lost_action"] = config.pingAction
             }
 
-            val response = getService().applySettings(fields)
+            val response = applyAndCommitSettings(fields)
             if (response.isSuccessful) {
                 cachedScript = config
                 true
@@ -1006,8 +1467,8 @@ class DefaultPadavanRepository(
 
     override fun scanWifiNetworks(is5GHz: Boolean): Flow<Result<List<com.example.padavancontrol.data.models.WifiNetwork>>> = flow {
         try {
-            val page = if (is5GHz) "apcli_scan.asp" else "apcli_scan2g.asp"
-            val response = getService().getPageContent(page)
+            val page = if (is5GHz) "wds_aplist.asp" else "wds_aplist_2g.asp"
+            val response = getService().getPageContent(page, "15000")
             if (response.isSuccessful && response.body() != null) {
                 val networks = PadavanResponseParser.parseWifiScan(response.body()!!)
                 emit(Result.success(networks))
@@ -1018,4 +1479,18 @@ class DefaultPadavanRepository(
             emit(Result.failure(e))
         }
     }.flowOn(Dispatchers.IO)
+
+    private suspend fun applyAndCommitSettings(fields: Map<String, String>): retrofit2.Response<String> {
+        val response = getService().applySettings(fields)
+        if (response.isSuccessful) {
+            try {
+                getService().commitFlash()
+            } catch (e: Exception) {
+                // Ignore exceptions here, as some apply actions (like restart_httpd) 
+                // can cause the router to drop the connection during commitFlash.
+                e.printStackTrace()
+            }
+        }
+        return response
+    }
 }

@@ -18,7 +18,9 @@ data class AdvancedUsbUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
-    val saveSuccess: Boolean = false
+    val saveSuccess: Boolean = false,
+    val loadProgress: Float = 0f,
+    val loadStatus: String = ""
 )
 
 class AdvancedUsbViewModel(
@@ -32,16 +34,17 @@ class AdvancedUsbViewModel(
     val toastMessage: SharedFlow<String> = _toastMessage.asSharedFlow()
 
     fun loadConfig(page: String) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null, saveSuccess = false) }
+        _uiState.update { it.copy(isLoading = true, loadProgress = 0.2f, loadStatus = "Fetching USB configuration...", errorMessage = null, saveSuccess = false) }
         viewModelScope.launch {
             repository.getUsbShareConfig(page).collect { result ->
                 result.onSuccess { config ->
-                    _uiState.update { it.copy(config = config, isLoading = false) }
+                    _uiState.update { it.copy(config = config, loadProgress = 1.0f, loadStatus = "USB settings loaded.", isLoading = false) }
                 }
                 result.onFailure { exception ->
                     _uiState.update { 
                         it.copy(
                             isLoading = false,
+                            loadProgress = 0f,
                             errorMessage = exception.message ?: "Failed to load USB configuration"
                         ) 
                     }

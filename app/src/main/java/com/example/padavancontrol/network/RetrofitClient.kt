@@ -5,6 +5,15 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.scalars.ScalarsConverterFactory
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
+
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.channels.BufferOverflow
 
 /**
  * Thread-safe singleton managing OkHttp + Retrofit instances.
@@ -14,6 +23,16 @@ import java.util.concurrent.TimeUnit
  * rotations (e.g., after the user edits Settings → Router IP).
  */
 object RetrofitClient {
+    private val _unauthorizedEvents = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val unauthorizedEvents: SharedFlow<Unit> = _unauthorizedEvents.asSharedFlow()
+
+    fun notifyUnauthorized() {
+        _unauthorizedEvents.tryEmit(Unit)
+    }
+
     private var currentIp: String? = null
 
     @Volatile
@@ -96,13 +115,44 @@ object RetrofitClient {
             passwordProvider = { this.passwordProvider() }
         )
 
-        val client = OkHttpClient.Builder()
+        val timeoutInterceptor = okhttp3.Interceptor { chain ->
+            val request = chain.request()
+            val timeoutHeader = request.header("Custom-Read-Timeout")
+            if (timeoutHeader != null) {
+                val timeoutMs = timeoutHeader.toLongOrNull() ?: 5000L
+                chain.withReadTimeout(timeoutMs.toInt(), TimeUnit.MILLISECONDS)
+                    .proceed(request.newBuilder().removeHeader("Custom-Read-Timeout").build())
+            } else {
+                chain.proceed(request)
+            }
+        }
+
+        val clientBuilder = OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
+            .addInterceptor(timeoutInterceptor)
             .addInterceptor(logging)
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(5, TimeUnit.SECONDS)
             .writeTimeout(5, TimeUnit.SECONDS)
-            .build()
+
+        try {
+            val trustAllCerts = arrayOf<TrustManager>(
+                object : X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                }
+            )
+
+            val sslContext = SSLContext.getInstance("SSL")
+            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+            clientBuilder.sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+            clientBuilder.hostnameVerifier { _, _ -> true }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        val client = clientBuilder.build()
 
         val retrofit = Retrofit.Builder()
             .baseUrl(currentIp!!)

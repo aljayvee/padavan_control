@@ -24,6 +24,7 @@ class DevicesViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val repository: PadavanRepository = mock(PadavanRepository::class.java)
+    private var viewModel: DevicesViewModel? = null
 
     @Before
     fun setUp() {
@@ -38,28 +39,35 @@ class DevicesViewModelTest {
 
     @After
     fun tearDown() {
+        viewModel?.onCleared()
         Dispatchers.resetMain()
     }
 
     @Test
     fun testInitialStateAndPolling() = runTest(testDispatcher) {
-        val viewModel = DevicesViewModel(repository)
+        val vm = DevicesViewModel(repository)
+        viewModel = vm
 
         // Force polling loop to execute once
         testDispatcher.scheduler.runCurrent()
 
-        val state = viewModel.uiState.value
+        val state = vm.uiState.value
         assertFalse(state.isLoading)
         assertEquals(2, state.clients.size)
         assertEquals("iPhone", state.clients[0].hostname)
         assertTrue(state.clients[0].isOnline)
         assertFalse(state.clients[1].isOnline)
+
+        vm.onCleared()
     }
 
     @Test
     fun testUpdateSearchQuery() = runTest(testDispatcher) {
-        val viewModel = DevicesViewModel(repository)
-        viewModel.updateSearchQuery("iPhone")
-        assertEquals("iPhone", viewModel.uiState.value.searchQuery)
+        val vm = DevicesViewModel(repository)
+        viewModel = vm
+        vm.updateSearchQuery("iPhone")
+        assertEquals("iPhone", vm.uiState.value.searchQuery)
+
+        vm.onCleared()
     }
 }

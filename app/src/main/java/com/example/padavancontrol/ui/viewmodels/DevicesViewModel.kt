@@ -52,7 +52,23 @@ class DevicesViewModel(
         _uiState.update { it.copy(searchQuery = query) }
     }
 
-    override fun onCleared() {
+    fun toggleBlockStatus(client: LanClient) {
+        viewModelScope.launch {
+            val success = if (client.blockIndex != -1) {
+                repository.unblockClient(client.blockIndex)
+            } else {
+                repository.blockClient(client.macAddress)
+            }
+            
+            if (success) {
+                // Poll immediately after a short delay to get the new state
+                delay(2000)
+                startPolling()
+            }
+        }
+    }
+
+    public override fun onCleared() {
         super.onCleared()
         pollingJob?.cancel()
     }

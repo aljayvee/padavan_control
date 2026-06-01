@@ -32,12 +32,13 @@ class AdvancedWanViewModel(
     private val _toastMessage = MutableSharedFlow<String>()
     val toastMessage: SharedFlow<String> = _toastMessage.asSharedFlow()
 
-    fun loadConfig(page: String) {
+    fun loadConfig(page: String, forceRefresh: Boolean = false) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null, saveSuccess = false) }
         viewModelScope.launch {
-            repository.getWanConfig(page).collect { result ->
+            repository.getWanConfig(page, forceRefresh).collect { result ->
                 result.onSuccess { config ->
-                    _uiState.update { it.copy(config = config, isLoading = false) }
+                    val isDone = config.loadProgress >= 1.0f
+                    _uiState.update { it.copy(config = config, isLoading = !isDone) }
                 }
                 result.onFailure { exception ->
                     _uiState.update { 
@@ -76,7 +77,7 @@ class AdvancedWanViewModel(
             _uiState.update { it.copy(isSaving = false) }
             if (success) {
                 _toastMessage.emit("Port forward rule added successfully.")
-                loadConfig(page)
+                loadConfig(page, forceRefresh = true)
             } else {
                 _toastMessage.emit("Failed to add port forward rule.")
             }
@@ -90,7 +91,7 @@ class AdvancedWanViewModel(
             _uiState.update { it.copy(isSaving = false) }
             if (success) {
                 _toastMessage.emit("Port forward rule deleted.")
-                loadConfig(page)
+                loadConfig(page, forceRefresh = true)
             } else {
                 _toastMessage.emit("Failed to delete port forward rule.")
             }

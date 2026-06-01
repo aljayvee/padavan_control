@@ -18,7 +18,9 @@ data class AdvancedLanUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
-    val saveSuccess: Boolean = false
+    val saveSuccess: Boolean = false,
+    val loadProgress: Float = 0f,
+    val loadStatus: String = ""
 )
 
 class AdvancedLanViewModel(
@@ -32,16 +34,17 @@ class AdvancedLanViewModel(
     val toastMessage: SharedFlow<String> = _toastMessage.asSharedFlow()
 
     fun loadConfig(page: String) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null, saveSuccess = false) }
+        _uiState.update { it.copy(isLoading = true, loadProgress = 0.2f, loadStatus = "Fetching LAN configuration...", errorMessage = null, saveSuccess = false) }
         viewModelScope.launch {
             repository.getLanConfig(page).collect { result ->
                 result.onSuccess { config ->
-                    _uiState.update { it.copy(config = config, isLoading = false) }
+                    _uiState.update { it.copy(config = config, loadProgress = 1.0f, loadStatus = "LAN settings loaded.", isLoading = false) }
                 }
                 result.onFailure { exception ->
                     _uiState.update { 
                         it.copy(
                             isLoading = false,
+                            loadProgress = 0f,
                             errorMessage = exception.message ?: "Failed to load LAN configuration"
                         ) 
                     }
@@ -103,6 +106,34 @@ class AdvancedLanViewModel(
                 _toastMessage.emit("WOL magic packet sent to $mac.")
             } else {
                 _toastMessage.emit("Failed to send WOL magic packet.")
+            }
+        }
+    }
+
+    fun addStaticRoute(dest: String, mask: String, gw: String, metric: Int, iface: String, page: String) {
+        _uiState.update { it.copy(isSaving = true) }
+        viewModelScope.launch {
+            val success = repository.addStaticRoute(dest, mask, gw, metric, iface)
+            _uiState.update { it.copy(isSaving = false) }
+            if (success) {
+                _toastMessage.emit("Static route added successfully.")
+                loadConfig(page)
+            } else {
+                _toastMessage.emit("Failed to add static route.")
+            }
+        }
+    }
+
+    fun deleteStaticRoute(index: Int, page: String) {
+        _uiState.update { it.copy(isSaving = true) }
+        viewModelScope.launch {
+            val success = repository.deleteStaticRoute(index)
+            _uiState.update { it.copy(isSaving = false) }
+            if (success) {
+                _toastMessage.emit("Static route deleted.")
+                loadConfig(page)
+            } else {
+                _toastMessage.emit("Failed to delete static route.")
             }
         }
     }

@@ -19,18 +19,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -39,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -90,8 +86,7 @@ import com.example.padavancontrol.theme.ArcherTeal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdvancedHubScreen(
-    onNavigateBack: () -> Unit,
+fun AdvancedSidebarContent(
     onNavigateToPage: (NavKey) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -109,40 +104,44 @@ fun AdvancedHubScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Advanced settings", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = ArcherTeal
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
-        },
-        modifier = modifier
-    ) { innerPadding ->
+    ModalDrawerSheet(
+        modifier = modifier.width(300.dp),
+        drawerContainerColor = MaterialTheme.colorScheme.background
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp)
+                .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            Text(
-                text = "Sub-system Configurations",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Sidebar Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            ) {
+                Text("📡", fontSize = 28.sp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "ADVANCED SETTINGS",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ArcherTeal
+                    )
+                    Text(
+                        text = "Router Configuration",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Category 1: Wireless 2.4GHz
             AccordionCategory(
@@ -178,7 +177,7 @@ fun AdvancedHubScreen(
                 onItemClick = onNavigateToPage
             )
 
-            // Category 3: LAN
+            // Category 3: Local Network (LAN)
             AccordionCategory(
                 title = "Local Network (LAN)",
                 subtitle = "Subnet routing, DHCP lease and IPTV",
@@ -195,7 +194,7 @@ fun AdvancedHubScreen(
                 onItemClick = onNavigateToPage
             )
 
-            // Category 4: WAN
+            // Category 4: Internet Gateway (WAN)
             AccordionCategory(
                 title = "Internet Gateway (WAN)",
                 subtitle = "WAN, IPv6 settings, DMZ & DDNS",
@@ -211,7 +210,7 @@ fun AdvancedHubScreen(
                 onItemClick = onNavigateToPage
             )
 
-            // Category 5: Firewall
+            // Category 5: Security & Firewall
             AccordionCategory(
                 title = "Security & Firewall",
                 subtitle = "Packet filters, MAC / URL blocklists",
@@ -227,7 +226,7 @@ fun AdvancedHubScreen(
                 onItemClick = onNavigateToPage
             )
 
-            // Category 6: USB Application
+            // Category 6: USB Applications
             AccordionCategory(
                 title = "USB Applications",
                 subtitle = "Samba share, FTP share, modems & printer",
@@ -243,7 +242,7 @@ fun AdvancedHubScreen(
                 onItemClick = onNavigateToPage
             )
 
-            // Category 7: Administration
+            // Category 7: System Administration
             AccordionCategory(
                 title = "System Administration",
                 subtitle = "Firmware, password, logs & op modes",
@@ -261,7 +260,7 @@ fun AdvancedHubScreen(
                 onItemClick = onNavigateToPage
             )
 
-            // Category 8: Customization Scripts
+            // Category 8: Hacker Customizations
             AccordionCategory(
                 title = "Hacker Customizations",
                 subtitle = "Startup script files and ping watchdog",
@@ -273,8 +272,8 @@ fun AdvancedHubScreen(
                 ),
                 onItemClick = onNavigateToPage
             )
-            
-            Spacer(modifier = Modifier.height(16.dp))
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -290,7 +289,7 @@ fun AccordionCategory(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -298,15 +297,15 @@ fun AccordionCategory(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onToggle)
-                    .padding(16.dp),
+                    .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text(text = subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(text = subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                
+
                 val rotation by animateFloatAsState(targetValue = if (isExpanded) 180f else 0f, label = "arrowRotation")
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowDown,
@@ -315,32 +314,32 @@ fun AccordionCategory(
                     modifier = Modifier.rotate(rotation)
                 )
             }
-            
+
             AnimatedVisibility(visible = isExpanded) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                        .padding(bottom = 8.dp)
+                        .padding(bottom = 6.dp)
                 ) {
                     items.forEach { (name, route) ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onItemClick(route) }
-                                .padding(horizontal = 24.dp, vertical = 12.dp),
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
+                                    .size(5.dp)
+                                    .clip(RoundedCornerShape(2.5.dp))
                                     .background(ArcherTeal)
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = name,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )

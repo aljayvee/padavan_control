@@ -26,6 +26,10 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,6 +49,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +66,7 @@ import com.example.padavancontrol.data.models.PortLink
 import com.example.padavancontrol.data.models.SystemStatus
 import com.example.padavancontrol.data.models.WanStatus
 import com.example.padavancontrol.theme.ArcherTeal
+import com.example.padavancontrol.theme.ArcherWarning
 import com.example.padavancontrol.ui.viewmodels.DashboardEvent
 import com.example.padavancontrol.ui.viewmodels.DashboardViewModel
 
@@ -69,10 +77,14 @@ fun DashboardScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToShellConsole: () -> Unit,
     onNavigateToLogViewer: () -> Unit,
+    onMenuClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    var showCpuDetailsModal by remember { mutableStateOf(false) }
+    var showRamDetailsModal by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -84,9 +96,25 @@ fun DashboardScreen(
         }
     }
 
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        viewModel.setPollingEnabled(true)
+        onDispose {
+            viewModel.setPollingEnabled(false)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onMenuClick) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Menu",
+                            tint = ArcherTeal
+                        )
+                    }
+                },
                 title = {
                     Column {
                         Text("newifi D2", fontWeight = FontWeight.Bold, fontSize = 20.sp)
@@ -132,6 +160,40 @@ fun DashboardScreen(
                 }
             } else {
                 Spacer(modifier = Modifier.height(4.dp))
+
+                // Hardware Mismatch Warning Card
+                uiState.hardwareWarning?.let { warningText ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.5.dp, ArcherWarning, RoundedCornerShape(16.dp)),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = ArcherWarning.copy(alpha = 0.08f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Hardware Mismatch Warning",
+                                tint = ArcherWarning,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = warningText,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
 
                 // Internet Status Box
                 Card(
@@ -181,11 +243,11 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Box(modifier = Modifier.weight(1f)) {
-                        DashboardStatCard(
-                            title = "CPU Usage",
-                            value = "${uiState.systemStatus?.cpuUsage ?: 0}%",
-                            extra = "${uiState.systemStatus?.cpuTemp ?: 0f}°C",
-                            progress = (uiState.systemStatus?.cpuUsage ?: 0) / 100f
+                        CpuStatCard(
+                            status = uiState.systemStatus,
+                            progress = (uiState.systemStatus?.cpuUsage ?: 0) / 100f,
+                            onCardClick = { showCpuDetailsModal = true },
+                            modifier = Modifier.height(130.dp)
                         )
                     }
 
@@ -200,13 +262,14 @@ fun DashboardScreen(
                             title = "RAM Usage",
                             value = "$usedMB / $totalMB MB",
                             extra = "${(ramPercent * 100).toInt()}% Used",
-                            progress = ramPercent
+                            progress = ramPercent,
+                            onCardClick = { showRamDetailsModal = true },
+                            modifier = Modifier.height(130.dp)
                         )
                     }
                 }
 
-                // Detailed System Diagnostics Card
-                DetailedDiagnosticsCard(status = uiState.systemStatus)
+
 
                 // Interactive Wi-Fi Toggles Card
                 WifiControlCard(
@@ -314,6 +377,198 @@ fun DashboardScreen(
             }
         )
     }
+
+    if (showCpuDetailsModal) {
+        val status = uiState.systemStatus
+        val busyVal = status?.cpuBusyPercent ?: 0
+        val userVal = status?.cpuUserPercent ?: 0
+        val sysVal = status?.cpuSysPercent ?: 0
+        val sirqVal = status?.cpuSirqPercent ?: 0
+        val irqVal = status?.cpuIrqPercent ?: 0
+        val idleVal = status?.cpuIdlePercent ?: 99
+
+        val days = (status?.uptime ?: 0L) / 86400
+        val hours = ((status?.uptime ?: 0L) % 86400) / 3600
+        val minutes = ((status?.uptime ?: 0L) % 3600) / 60
+        val uptimeFormatted = "${days}d ${String.format("%02d", hours)}h ${String.format("%02d", minutes)}m"
+
+        AlertDialog(
+            onDismissRequest = { showCpuDetailsModal = false },
+            title = { Text("CPU Performance Diagnostics", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("CPU Utilization Summary", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+                    
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("busy: $busyVal%", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text("idle: $idleVal%", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("user: $userVal%", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text("system: $sysVal%", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("sirq: $sirqVal%", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text("irq: $irqVal%", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("System Performance", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        MemoryRow("CPU Temperature", "${status?.cpuTemp ?: 0f}°C")
+                        MemoryRow("Load Average", status?.loadAvg ?: "0.00 0.00 0.00")
+                        MemoryRow("System Uptime", uptimeFormatted)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Raw CPU Ticks", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        MemoryRow("Total Ticks", "${status?.cpuTotal ?: 0L}")
+                        MemoryRow("Busy Ticks", "${status?.cpuBusy ?: 0L}")
+                        MemoryRow("User Ticks", "${status?.cpuUserTicks ?: 0L}")
+                        MemoryRow("System Ticks", "${status?.cpuSysTicks ?: 0L}")
+                        MemoryRow("Nice Ticks", "${status?.cpuNiceTicks ?: 0L}")
+                        MemoryRow("Idle Ticks", "${status?.cpuIdleTicks ?: 0L}")
+                        MemoryRow("IRQ Ticks", "${status?.cpuIrqTicks ?: 0L}")
+                        MemoryRow("SoftIRQ Ticks", "${status?.cpuSirqTicks ?: 0L}")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCpuDetailsModal = false }) {
+                    Text("CLOSE", fontWeight = FontWeight.Bold, color = ArcherTeal)
+                }
+            }
+        )
+    }
+
+    if (showRamDetailsModal) {
+        val status = uiState.systemStatus
+        fun formatBytes(bytes: Long): String {
+            val mb = bytes.toDouble() / (1024.0 * 1024.0)
+            return if (mb >= 1.0) {
+                String.format(java.util.Locale.US, "%.2f MB", mb)
+            } else {
+                String.format(java.util.Locale.US, "%d B", bytes)
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showRamDetailsModal = false },
+            title = { Text("Memory & Swap Utilization", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        MemoryRow("Total Physical Memory", formatBytes(status?.ramTotal ?: 0L))
+                        MemoryRow("Used Memory", formatBytes(status?.ramUsed ?: 0L))
+                        MemoryRow("Free Memory", formatBytes(status?.ramFree ?: 0L))
+                        MemoryRow("Cached Memory", formatBytes(status?.ramCached ?: 0L))
+                        MemoryRow("Buffers Memory", formatBytes(status?.ramBuffers ?: 0L))
+                        MemoryRow("Swap Space", formatBytes(status?.swapTotal ?: 0L))
+                        MemoryRow("Swap Used", formatBytes(status?.swapUsed ?: 0L))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRamDetailsModal = false }) {
+                    Text("CLOSE", fontWeight = FontWeight.Bold, color = ArcherTeal)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun CpuStatCard(
+    status: SystemStatus?,
+    progress: Float,
+    onCardClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onCardClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "CPU Usage",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${status?.cpuTemp ?: 0f}°C",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${status?.cpuUsage ?: 0}%",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            
+            Column {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = ArcherTeal,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${status?.cpuUsage ?: 0}% Used",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -321,12 +576,14 @@ fun DashboardStatCard(
     title: String,
     value: String,
     extra: String,
-    progress: Float
+    progress: Float,
+    onCardClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .height(130.dp),
+            .clickable(onClick = onCardClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -546,78 +803,7 @@ fun QuickActionButton(
     }
 }
 
-@Composable
-fun DetailedDiagnosticsCard(status: SystemStatus?, modifier: Modifier = Modifier) {
-    if (status == null) return
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "System Diagnostics",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = ArcherTeal
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Load Average & Uptime Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("Load Average", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(status.loadAvg, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("System Uptime", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    val days = status.uptime / 86400
-                    val hours = (status.uptime % 86400) / 3600
-                    val minutes = (status.uptime % 3600) / 60
-                    val uptimeFormatted = "${days}d ${String.format("%02d", hours)}h ${String.format("%02d", minutes)}m"
-
-                    Text(uptimeFormatted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant))
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Memory Details Section
-            Text("Memory & Swap Utilization", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ArcherTeal)
-            Spacer(modifier = Modifier.height(10.dp))
-
-            fun formatBytes(bytes: Long): String {
-                val mb = bytes.toDouble() / (1024.0 * 1024.0)
-                return if (mb >= 1.0) {
-                    String.format(java.util.Locale.US, "%.2f MB", mb)
-                } else {
-                    String.format(java.util.Locale.US, "%d B", bytes)
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                MemoryRow("Total Physical Memory", formatBytes(status.ramTotal))
-                MemoryRow("Used Memory", formatBytes(status.ramUsed))
-                MemoryRow("Free Memory", formatBytes(status.ramFree))
-                MemoryRow("Cached Memory", formatBytes(status.ramCached))
-                MemoryRow("Buffers Memory", formatBytes(status.ramBuffers))
-                MemoryRow("Swap Space", formatBytes(status.swapTotal))
-                MemoryRow("Swap Used", formatBytes(status.swapUsed))
-            }
-        }
-    }
-}
 
 @Composable
 fun MemoryRow(label: String, value: String) {

@@ -22,6 +22,7 @@ class TrafficViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val repository: PadavanRepository = mock(PadavanRepository::class.java)
+    private var viewModel: TrafficViewModel? = null
 
     @Before
     fun setUp() {
@@ -33,20 +34,24 @@ class TrafficViewModelTest {
 
     @After
     fun tearDown() {
+        viewModel?.onCleared()
         Dispatchers.resetMain()
     }
 
     @Test
     fun testInitialStateAndCalculations() = runTest(testDispatcher) {
-        val viewModel = TrafficViewModel(repository)
+        val vm = TrafficViewModel(repository)
+        viewModel = vm
 
         // Force polling execution
         testDispatcher.scheduler.runCurrent()
 
-        val state = viewModel.uiState.value
+        val state = vm.uiState.value
         assertEquals(1024L * 1024L * 5, state.totalDownloadBytes)
         assertEquals(1024L * 1024L * 2, state.totalUploadBytes)
         assertEquals(1, state.downloadHistory.size)
         assertEquals(1, state.uploadHistory.size)
+
+        vm.onCleared()
     }
 }

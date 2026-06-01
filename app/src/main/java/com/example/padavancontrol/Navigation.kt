@@ -29,7 +29,13 @@ import com.example.padavancontrol.ui.screens.SettingsScreen
 import com.example.padavancontrol.ui.screens.TrafficScreen
 import com.example.padavancontrol.ui.screens.ShellConsoleScreen
 import com.example.padavancontrol.ui.screens.LogViewerScreen
-import com.example.padavancontrol.ui.screens.AdvancedHubScreen
+import com.example.padavancontrol.ui.screens.AdvancedSidebarContent
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.DrawerValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
 import com.example.padavancontrol.ui.screens.AdvancedSettingFormPlaceholderScreen
 import com.example.padavancontrol.ui.screens.AdvancedWirelessScreen
 import com.example.padavancontrol.ui.screens.AdvancedLanScreen
@@ -53,12 +59,58 @@ import com.example.padavancontrol.ui.viewmodels.AdvancedUsbViewModel
 import com.example.padavancontrol.ui.viewmodels.AdvancedAdminViewModel
 import com.example.padavancontrol.ui.viewmodels.AdvancedScriptViewModel
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import com.example.padavancontrol.ui.screens.SplashLoadingScreen
+import com.example.padavancontrol.network.RetrofitClient
+
+sealed interface AppInitState {
+    object Loading : AppInitState
+    data class Success(
+        val credentialStore: CredentialStore,
+        val repository: DefaultPadavanRepository,
+        val settingsDataStore: SettingsDataStore
+    ) : AppInitState
+}
+
 @Composable
 fun MainNavigation() {
     val context = LocalContext.current
-    val credentialStore = remember { CredentialStore(context) }
-    val repository = remember { DefaultPadavanRepository(credentialStore) }
-    val settingsDataStore = remember { SettingsDataStore(context) }
+    var initState by remember { mutableStateOf<AppInitState>(AppInitState.Loading) }
+
+    LaunchedEffect(context) {
+        withContext(Dispatchers.IO) {
+            val credentialStore = CredentialStore(context)
+            val repository = DefaultPadavanRepository(credentialStore)
+            val settingsDataStore = SettingsDataStore(context)
+            initState = AppInitState.Success(credentialStore, repository, settingsDataStore)
+        }
+    }
+
+    when (val state = initState) {
+        is AppInitState.Loading -> {
+            SplashLoadingScreen()
+        }
+        is AppInitState.Success -> {
+            MainNavigationContent(
+                credentialStore = state.credentialStore,
+                repository = state.repository,
+                settingsDataStore = state.settingsDataStore
+            )
+        }
+    }
+}
+
+@Composable
+fun MainNavigationContent(
+    credentialStore: CredentialStore,
+    repository: DefaultPadavanRepository,
+    settingsDataStore: SettingsDataStore
+) {
+    val context = LocalContext.current
 
     val loginViewModel = remember(repository, credentialStore) {
         LoginViewModel(repository, credentialStore)
@@ -114,10 +166,39 @@ fun MainNavigation() {
     val backStack = rememberNavBackStack(startKey)
     val currentKey = backStack.lastOrNull()
 
+    LaunchedEffect(credentialStore, backStack) {
+        RetrofitClient.unauthorizedEvents.collect {
+            credentialStore.clearCredentials()
+            backStack.clear()
+            backStack.add(Login)
+        }
+    }
+
     val showBottomBar = currentKey == Dashboard || currentKey == Devices || currentKey == Traffic || currentKey == Settings
 
-    Scaffold(
-        bottomBar = {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        drawerState.close()
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = showBottomBar,
+        drawerContent = {
+            if (showBottomBar) {
+                AdvancedSidebarContent(
+                    onNavigateToPage = { pageKey ->
+                        scope.launch { drawerState.close() }
+                        backStack.add(pageKey)
+                    }
+                )
+            }
+        }
+    ) {
+        Scaffold(
+            bottomBar = {
             if (showBottomBar) {
                 NavigationBar {
                     NavigationBarItem(
@@ -208,18 +289,27 @@ fun MainNavigation() {
                         onNavigateToLogViewer = {
                             backStack.add(LogViewer)
                         },
+                        onMenuClick = {
+                            scope.launch { drawerState.open() }
+                        },
                         modifier = Modifier
                     )
                 }
                 entry<Devices> {
                     DevicesScreen(
                         viewModel = devicesViewModel,
+                        onMenuClick = {
+                            scope.launch { drawerState.open() }
+                        },
                         modifier = Modifier
                     )
                 }
                 entry<Traffic> {
                     TrafficScreen(
                         viewModel = trafficViewModel,
+                        onMenuClick = {
+                            scope.launch { drawerState.open() }
+                        },
                         modifier = Modifier
                     )
                 }
@@ -231,8 +321,8 @@ fun MainNavigation() {
                             backStack.clear()
                             backStack.add(Login)
                         },
-                        onNavigateToAdvanced = {
-                            backStack.add(AdvancedHub)
+                        onMenuClick = {
+                            scope.launch { drawerState.open() }
                         },
                         modifier = Modifier
                     )
@@ -255,19 +345,6 @@ fun MainNavigation() {
                             if (backStack.size > 1) {
                                 backStack.removeLastOrNull()
                             }
-                        },
-                        modifier = Modifier
-                    )
-                }
-                entry<AdvancedHub> {
-                    AdvancedHubScreen(
-                        onNavigateBack = {
-                            if (backStack.size > 1) {
-                                backStack.removeLastOrNull()
-                            }
-                        },
-                        onNavigateToPage = { pageKey ->
-                            backStack.add(pageKey)
                         },
                         modifier = Modifier
                     )
@@ -333,5 +410,6 @@ fun MainNavigation() {
             }
         )
     }
+}
 }
 }

@@ -35,12 +35,14 @@ class DashboardViewModelTest {
 
     private val repository: PadavanRepository = mock(PadavanRepository::class.java)
     private val credentialStore: CredentialStore = mock(CredentialStore::class.java)
+    private var viewModel: DashboardViewModel? = null
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
 
         whenever(credentialStore.getRouterIp()).thenReturn("192.168.2.2")
+        whenever(credentialStore.getHardwareModel()).thenReturn("NEWIFI3")
         whenever(repository.getSystemStatus()).thenReturn(flowOf(Result.success(
             SystemStatus(cpuUsage = 15, cpuTemp = 45f, wifiTemp = 40f, ramUsed = 50 * 1024 * 1024, ramTotal = 128 * 1024 * 1024, uptime = 3600L)
         )))
@@ -54,38 +56,43 @@ class DashboardViewModelTest {
 
     @After
     fun tearDown() {
+        viewModel?.onCleared()
         Dispatchers.resetMain()
     }
 
     @Test
     fun testInitialStateAndPolling() = runTest(testDispatcher) {
-        val viewModel = DashboardViewModel(repository, credentialStore)
+        val vm = DashboardViewModel(repository, credentialStore)
+        viewModel = vm
 
         // Let the polling execute once
         testDispatcher.scheduler.runCurrent()
 
-        val state = viewModel.uiState.value
+        val state = vm.uiState.value
         assertEquals("192.168.2.2", state.routerIp)
         assertTrue(state.wanStatus?.isConnected == true)
         assertEquals("1.2.3.4", state.wanStatus?.wanIp)
         assertEquals(15, state.systemStatus?.cpuUsage)
         assertEquals(1, state.lanLinks.size)
         assertEquals("LAN1", state.lanLinks[0].name)
+
+        vm.onCleared()
     }
 
     @Test
     fun testToggleWifi2G() = runTest(testDispatcher) {
         doReturn(true).`when`(repository).toggleWifi2G(anyBoolean())
 
-        val viewModel = DashboardViewModel(repository, credentialStore)
+        val vm = DashboardViewModel(repository, credentialStore)
+        viewModel = vm
         testDispatcher.scheduler.runCurrent()
 
-        viewModel.toggleWifi2G(false)
-        assertFalse(viewModel.uiState.value.wifi2GEnabled)
+        vm.toggleWifi2G(false)
+        assertFalse(vm.uiState.value.wifi2GEnabled)
 
         val events = mutableListOf<DashboardEvent>()
         val job = launch {
-            viewModel.events.collect { events.add(it) }
+            vm.events.collect { events.add(it) }
         }
 
         testDispatcher.scheduler.runCurrent()
@@ -93,30 +100,33 @@ class DashboardViewModelTest {
         assertTrue((events[0] as DashboardEvent.ShowToast).message.contains("toggled successfully"))
 
         job.cancel()
+        vm.onCleared()
     }
 
     @Test
     fun testRebootRouter() = runTest(testDispatcher) {
         doReturn(true).`when`(repository).rebootRouter()
 
-        val viewModel = DashboardViewModel(repository, credentialStore)
+        val vm = DashboardViewModel(repository, credentialStore)
+        viewModel = vm
         testDispatcher.scheduler.runCurrent()
 
-        viewModel.showRebootDialog()
-        assertTrue(viewModel.uiState.value.showRebootDialog)
+        vm.showRebootDialog()
+        assertTrue(vm.uiState.value.showRebootDialog)
 
         val events = mutableListOf<DashboardEvent>()
         val job = launch {
-            viewModel.events.collect { events.add(it) }
+            vm.events.collect { events.add(it) }
         }
 
-        viewModel.confirmReboot()
-        assertFalse(viewModel.uiState.value.showRebootDialog)
+        vm.confirmReboot()
+        assertFalse(vm.uiState.value.showRebootDialog)
 
         testDispatcher.scheduler.runCurrent()
         assertEquals(1, events.size)
         assertEquals("Rebooting router...", (events[0] as DashboardEvent.ShowToast).message)
 
         job.cancel()
+        vm.onCleared()
     }
 }

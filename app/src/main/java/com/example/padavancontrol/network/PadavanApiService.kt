@@ -20,7 +20,7 @@ interface PadavanApiService {
     @GET("status_wanlink.asp")
     suspend fun getWanLinkStatus(): Response<String>
 
-    @GET("lan_clients.asp")
+    @GET("device-map/clients.asp")
     suspend fun getLanClients(): Response<String>
 
     @GET("update.cgi")
@@ -66,9 +66,12 @@ interface PadavanApiService {
     ): Response<String>
 
     @GET("{page}")
-    suspend fun getPageContent(@retrofit2.http.Path("page") page: String): Response<String>
+    suspend fun getPageContent(
+        @retrofit2.http.Path("page") page: String,
+        @retrofit2.http.Header("Custom-Read-Timeout") readTimeout: String? = null
+    ): Response<String>
 
     @FormUrlEncoded
-    @POST("apply.cgi")
+    @POST("start_apply.htm")
     suspend fun applySettings(@retrofit2.http.FieldMap fields: Map<String, String>): Response<String>
 }

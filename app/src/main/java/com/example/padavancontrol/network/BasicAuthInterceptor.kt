@@ -21,6 +21,11 @@ class BasicAuthInterceptor(
         val authenticatedRequest = originalRequest.newBuilder()
             .header("Authorization", credential)
             .build()
-        return chain.proceed(authenticatedRequest)
+        
+        val response = chain.proceed(authenticatedRequest)
+        if (response.code == 401) {
+            RetrofitClient.notifyUnauthorized()
+        }
+        return response
     }
 }

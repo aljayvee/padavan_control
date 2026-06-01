@@ -33,6 +33,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,10 +60,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.padavancontrol.data.models.LanConfig
 import com.example.padavancontrol.data.models.StaticLease
@@ -269,17 +277,14 @@ fun AdvancedLanScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (uiState.isLoading) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator(color = ArcherTeal)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Fetching LAN configuration...", color = Color.Gray, fontSize = 14.sp)
-                }
-            } else if (uiState.errorMessage != null) {
+            val animatedProgress by animateFloatAsState(
+                targetValue = uiState.loadProgress,
+                animationSpec = tween(durationMillis = 800, easing = LinearEasing),
+                label = "loadProgressAnimation"
+            )
+            val showLoader = uiState.isLoading || animatedProgress < 0.99f
+
+            if (uiState.errorMessage != null) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -304,6 +309,38 @@ fun AdvancedLanScreen(
                     ) {
                         Text("Retry")
                     }
+                }
+            } else if (showLoader) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    LinearProgressIndicator(
+                        progress = { animatedProgress },
+                        color = ArcherTeal,
+                        trackColor = Color(0xFFE0F2F1),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "${(animatedProgress * 100).toInt()}%",
+                        color = ArcherTeal,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = uiState.loadStatus.ifEmpty { "Fetching LAN configuration..." },
+                        color = Color.Gray,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
                 }
             } else {
                 val scrollState = rememberScrollState()
@@ -496,9 +533,95 @@ fun AdvancedLanScreen(
                                         )
 
                                         OutlinedTextField(
+                                            value = uiState.config.dhcpDns3,
+                                            onValueChange = { viewModel.updateConfig(uiState.config.copy(dhcpDns3 = it)) },
+                                            label = { Text("Tertiary DNS Server (Optional)") },
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = uiState.config.dhcpDnsv6,
+                                            onValueChange = { viewModel.updateConfig(uiState.config.copy(dhcpDnsv6 = it)) },
+                                            label = { Text("IPv6 DNS Server (Optional)") },
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                        )
+
+                                        OutlinedTextField(
                                             value = uiState.config.dhcpWins,
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(dhcpWins = it)) },
                                             label = { Text("WINS Server (Optional)") },
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                                        )
+
+                                        // Verbose dropdown
+                                        var verboseExpanded by remember { mutableStateOf(false) }
+                                        val verboseOptions = listOf(
+                                            0 to "Disabled",
+                                            1 to "DHCPv4",
+                                            2 to "DHCPv6",
+                                            3 to "DHCPv4 + DHCPv6"
+                                        )
+                                        val selectedVerboseText = verboseOptions.find { it.first == uiState.config.dhcpVerbose }?.second ?: "Disabled"
+
+                                        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                                            OutlinedTextField(
+                                                value = selectedVerboseText,
+                                                onValueChange = {},
+                                                readOnly = true,
+                                                label = { Text("DHCP Server Verbose Logging") },
+                                                trailingIcon = {
+                                                    IconButton(onClick = { verboseExpanded = true }) {
+                                                        Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            DropdownMenu(
+                                                expanded = verboseExpanded,
+                                                onDismissRequest = { verboseExpanded = false },
+                                                modifier = Modifier.fillMaxWidth(0.9f)
+                                            ) {
+                                                verboseOptions.forEach { option ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(option.second) },
+                                                        onClick = {
+                                                            viewModel.updateConfig(uiState.config.copy(dhcpVerbose = option.first))
+                                                            verboseExpanded = false
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Text("Custom Configurations", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
+
+                                        OutlinedTextField(
+                                            value = uiState.config.dnsmasqDnsmasqConf,
+                                            onValueChange = { viewModel.updateConfig(uiState.config.copy(dnsmasqDnsmasqConf = it)) },
+                                            label = { Text("dnsmasq.conf Custom Configuration") },
+                                            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                                            minLines = 3,
+                                            maxLines = 8,
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = uiState.config.dnsmasqDhcpConf,
+                                            onValueChange = { viewModel.updateConfig(uiState.config.copy(dnsmasqDhcpConf = it)) },
+                                            label = { Text("dhcp.conf Custom Configuration") },
+                                            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                                            minLines = 3,
+                                            maxLines = 8,
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = uiState.config.dnsmasqHosts,
+                                            onValueChange = { viewModel.updateConfig(uiState.config.copy(dnsmasqHosts = it)) },
+                                            label = { Text("hosts Custom Configuration") },
+                                            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                                            minLines = 3,
+                                            maxLines = 8,
                                             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                                         )
 
@@ -657,13 +780,90 @@ fun AdvancedLanScreen(
                                         )
                                     }
 
+                                    // Force IGMP dropdown
+                                    var igmpExpanded by remember { mutableStateOf(false) }
+                                    val igmpOptions = listOf(
+                                        0 to "No (*)",
+                                        1 to "IGMPv1",
+                                        2 to "IGMPv2"
+                                    )
+                                    val selectedIgmpText = igmpOptions.find { it.first == uiState.config.forceIgmp }?.second ?: "No (*)"
+
+                                    Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                                        OutlinedTextField(
+                                            value = selectedIgmpText,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            label = { Text("Force IGMP Protocol Version") },
+                                            trailingIcon = {
+                                                IconButton(onClick = { igmpExpanded = true }) {
+                                                    Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        DropdownMenu(
+                                            expanded = igmpExpanded,
+                                            onDismissRequest = { igmpExpanded = false },
+                                            modifier = Modifier.fillMaxWidth(0.9f)
+                                        ) {
+                                            igmpOptions.forEach { option ->
+                                                DropdownMenuItem(
+                                                    text = { Text(option.second) },
+                                                    onClick = {
+                                                        viewModel.updateConfig(uiState.config.copy(forceIgmp = option.first))
+                                                        igmpExpanded = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Text("IPTV Proxy Servers", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
+
+                                    OutlinedTextField(
+                                        value = uiState.config.udpxyPort.toString(),
+                                        onValueChange = { viewModel.updateConfig(uiState.config.copy(udpxyPort = it.toIntOrNull() ?: 0)) },
+                                        label = { Text("UDP Multicast to HTTP Proxy Port (0 to disable)") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                    )
+
+                                    OutlinedTextField(
+                                        value = uiState.config.xupnpdPort.toString(),
+                                        onValueChange = { viewModel.updateConfig(uiState.config.copy(xupnpdPort = it.toIntOrNull() ?: 0)) },
+                                        label = { Text("eXtensible UPnP agent (xUPNPd) Web Port (0 to disable)") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                    )
+
+                                    if (uiState.config.udpxyPort > 0 && uiState.config.xupnpdPort > 0) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                                        ) {
+                                            Column {
+                                                Text("Use udpxy proxy inside xupnpd", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                                Text("Bridge multicast feeds through proxy", color = Color.Gray, fontSize = 12.sp)
+                                            }
+                                            Switch(
+                                                checked = uiState.config.xupnpdUdpxy,
+                                                onCheckedChange = { viewModel.updateConfig(uiState.config.copy(xupnpdUdpxy = it)) },
+                                                colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal, checkedTrackColor = ArcherTeal.copy(alpha = 0.5f))
+                                            )
+                                        }
+                                    }
+
+                                    Text("Multicast Traffic - IGMP/MLD Snooping", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
+
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                                     ) {
                                         Column {
-                                            Text("Enable IGMP Snooping", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                            Text("Enable IGMP/MLD Snooping", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                                             Text("Optimize switch traffic using snooping", color = Color.Gray, fontSize = 12.sp)
                                         }
                                         Switch(
@@ -672,6 +872,131 @@ fun AdvancedLanScreen(
                                             colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal, checkedTrackColor = ArcherTeal.copy(alpha = 0.5f))
                                         )
                                     }
+
+                                    // M2U Switch dropdown
+                                    var m2uExpanded by remember { mutableStateOf(false) }
+                                    val m2uOptions = listOf(
+                                        0 to "Disable",
+                                        1 to "Multicast to Unicast",
+                                        2 to "HW IGMP/MLD snooping (*)"
+                                    )
+                                    val selectedM2uText = m2uOptions.find { it.first == uiState.config.etherM2u }?.second ?: "HW IGMP/MLD snooping (*)"
+
+                                    Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                                        OutlinedTextField(
+                                            value = selectedM2uText,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            label = { Text("M2U - Ethernet Switch") },
+                                            trailingIcon = {
+                                                IconButton(onClick = { m2uExpanded = true }) {
+                                                    Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        DropdownMenu(
+                                            expanded = m2uExpanded,
+                                            onDismissRequest = { m2uExpanded = false },
+                                            modifier = Modifier.fillMaxWidth(0.9f)
+                                        ) {
+                                            m2uOptions.forEach { option ->
+                                                DropdownMenuItem(
+                                                    text = { Text(option.second) },
+                                                    onClick = {
+                                                        viewModel.updateConfig(uiState.config.copy(etherM2u = option.first))
+                                                        m2uExpanded = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // M2U 2.4G dropdown
+                                    var m2u2gExpanded by remember { mutableStateOf(false) }
+                                    val m2u2gOptions = listOf(
+                                        0 to "Disable",
+                                        1 to "Multicast to Unicast (*)"
+                                    )
+                                    val selectedM2u2gText = m2u2gOptions.find { it.first == uiState.config.rtIgmpSnEnable }?.second ?: "Multicast to Unicast (*)"
+
+                                    Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                                        OutlinedTextField(
+                                            value = selectedM2u2gText,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            label = { Text("M2U - Wireless 2.4GHz") },
+                                            trailingIcon = {
+                                                IconButton(onClick = { m2u2gExpanded = true }) {
+                                                    Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        DropdownMenu(
+                                            expanded = m2u2gExpanded,
+                                            onDismissRequest = { m2u2gExpanded = false },
+                                            modifier = Modifier.fillMaxWidth(0.9f)
+                                        ) {
+                                            m2u2gOptions.forEach { option ->
+                                                DropdownMenuItem(
+                                                    text = { Text(option.second) },
+                                                    onClick = {
+                                                        viewModel.updateConfig(uiState.config.copy(rtIgmpSnEnable = option.first))
+                                                        m2u2gExpanded = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // M2U 5G dropdown
+                                    var m2u5gExpanded by remember { mutableStateOf(false) }
+                                    val m2u5gOptions = listOf(
+                                        0 to "Disable",
+                                        1 to "Multicast to Unicast (*)"
+                                    )
+                                    val selectedM2u5gText = m2u5gOptions.find { it.first == uiState.config.wlIgmpSnEnable }?.second ?: "Multicast to Unicast (*)"
+
+                                    Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                                        OutlinedTextField(
+                                            value = selectedM2u5gText,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            label = { Text("M2U - Wireless 5GHz") },
+                                            trailingIcon = {
+                                                IconButton(onClick = { m2u5gExpanded = true }) {
+                                                    Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        DropdownMenu(
+                                            expanded = m2u5gExpanded,
+                                            onDismissRequest = { m2u5gExpanded = false },
+                                            modifier = Modifier.fillMaxWidth(0.9f)
+                                        ) {
+                                            m2u5gOptions.forEach { option ->
+                                                DropdownMenuItem(
+                                                    text = { Text(option.second) },
+                                                    onClick = {
+                                                        viewModel.updateConfig(uiState.config.copy(wlIgmpSnEnable = option.first))
+                                                        m2u5gExpanded = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Text("Network storm constraint on Ethernet Ports", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
+
+                                    OutlinedTextField(
+                                        value = uiState.config.controlrateBroadcast.toString(),
+                                        onValueChange = { viewModel.updateConfig(uiState.config.copy(controlrateBroadcast = it.toIntOrNull() ?: 0)) },
+                                        label = { Text("Broadcast Storm Control (Mbps, 0 to disable)") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
                         }
@@ -688,6 +1013,22 @@ fun AdvancedLanScreen(
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text("Static routing", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
                                     
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                                    ) {
+                                        Column {
+                                            Text("Use DHCP Routes", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                            Text("Obtain routes automatically from upstream DHCP", color = Color.Gray, fontSize = 12.sp)
+                                        }
+                                        Switch(
+                                            checked = uiState.config.useDhcpRoutes,
+                                            onCheckedChange = { viewModel.updateConfig(uiState.config.copy(useDhcpRoutes = it)) },
+                                            colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal, checkedTrackColor = ArcherTeal.copy(alpha = 0.5f))
+                                        )
+                                    }
+
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -737,7 +1078,100 @@ fun AdvancedLanScreen(
                                                         Text("Mask: ${route.netmask}", fontSize = 12.sp, color = Color.DarkGray)
                                                         Text("GW: ${route.gateway} | Metric: ${route.metric} | IF: ${route.interfaceName}", fontSize = 12.sp, color = Color.Gray)
                                                     }
+                                                    IconButton(onClick = { viewModel.deleteStaticRoute(index, "Advanced_GWStaticRoute_Content.asp") }) {
+                                                        Icon(Icons.Filled.Delete, contentDescription = "Delete Route", tint = Color(0xFFE53935))
+                                                    }
                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Add Route Form
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 16.dp)
+                                        .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(12.dp)),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text("Add Static Route", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
+                                        
+                                        OutlinedTextField(
+                                            value = addRouteDest,
+                                            onValueChange = { addRouteDest = it },
+                                            label = { Text("Network/Host IP") },
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                        )
+                                        
+                                        OutlinedTextField(
+                                            value = addRouteMask,
+                                            onValueChange = { addRouteMask = it },
+                                            label = { Text("Netmask") },
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                        )
+                                        
+                                        OutlinedTextField(
+                                            value = addRouteGateway,
+                                            onValueChange = { addRouteGateway = it },
+                                            label = { Text("Gateway") },
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                        )
+                                        
+                                        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedTextField(
+                                                value = addRouteMetric,
+                                                onValueChange = { addRouteMetric = it },
+                                                label = { Text("Metric") },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            var routeIfExpanded by remember { mutableStateOf(false) }
+                                            val routeIfOptions = listOf("LAN", "MAN", "WAN")
+                                            Box(modifier = Modifier.weight(1f)) {
+                                                OutlinedTextField(
+                                                    value = addRouteIf,
+                                                    onValueChange = {},
+                                                    readOnly = true,
+                                                    label = { Text("Interface") },
+                                                    trailingIcon = {
+                                                        IconButton(onClick = { routeIfExpanded = true }) {
+                                                            Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                                        }
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                                DropdownMenu(
+                                                    expanded = routeIfExpanded,
+                                                    onDismissRequest = { routeIfExpanded = false }
+                                                ) {
+                                                    routeIfOptions.forEach { option ->
+                                                        DropdownMenuItem(
+                                                            text = { Text(option) },
+                                                            onClick = {
+                                                                addRouteIf = option
+                                                                routeIfExpanded = false
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        Button(
+                                            onClick = { 
+                                                val metricInt = addRouteMetric.toIntOrNull() ?: 1
+                                                viewModel.addStaticRoute(addRouteDest, addRouteMask, addRouteGateway, metricInt, addRouteIf, "Advanced_GWStaticRoute_Content.asp")
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = ButtonDefaults.buttonColors(containerColor = ArcherTeal),
+                                            enabled = !uiState.isSaving && addRouteDest.isNotBlank()
+                                        ) {
+                                            if (uiState.isSaving) {
+                                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                                            } else {
+                                                Text("Add Route")
                                             }
                                         }
                                     }
@@ -755,7 +1189,7 @@ fun AdvancedLanScreen(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Switch configuration", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
+                                    Text("Switch base settings", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
                                     
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -776,7 +1210,7 @@ fun AdvancedLanScreen(
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                                     ) {
                                         Column {
                                             Text("Energy Efficient Ethernet (EEE)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
@@ -787,6 +1221,186 @@ fun AdvancedLanScreen(
                                             onCheckedChange = { viewModel.updateConfig(uiState.config.copy(eeeEnabled = it)) },
                                             colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal, checkedTrackColor = ArcherTeal.copy(alpha = 0.5f))
                                         )
+                                    }
+
+                                    // Jumbo frame dropdown
+                                    var jumboExpanded by remember { mutableStateOf(false) }
+                                    val jumboOptions = listOf(
+                                        0 to "Up to 1536 bytes",
+                                        1 to "Up to 16000 bytes"
+                                    )
+                                    val selectedJumboText = jumboOptions.find { it.first == uiState.config.etherJumbo }?.second ?: "Up to 1536 bytes"
+
+                                    Box(modifier = Modifier.fillMaxWidth()) {
+                                        OutlinedTextField(
+                                            value = selectedJumboText,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            label = { Text("Accept Jumbo Frames Between Ports") },
+                                            trailingIcon = {
+                                                IconButton(onClick = { jumboExpanded = true }) {
+                                                    Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        DropdownMenu(
+                                            expanded = jumboExpanded,
+                                            onDismissRequest = { jumboExpanded = false },
+                                            modifier = Modifier.fillMaxWidth(0.9f)
+                                        ) {
+                                            jumboOptions.forEach { option ->
+                                                DropdownMenuItem(
+                                                    text = { Text(option.second) },
+                                                    onClick = {
+                                                        viewModel.updateConfig(uiState.config.copy(etherJumbo = option.first))
+                                                        jumboExpanded = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Port configuration list
+                            uiState.config.portsConfig.forEach { portConfig ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 16.dp)
+                                        .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(12.dp)),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Port ${portConfig.portName}",
+                                                fontWeight = FontWeight.Bold,
+                                                color = ArcherTeal,
+                                                fontSize = 15.sp
+                                            )
+                                            
+                                            // Link State Badge
+                                            val badgeColor = when {
+                                                portConfig.linkState.contains("No link", ignoreCase = true) -> Color.Gray
+                                                portConfig.linkState.contains("1000", ignoreCase = true) -> Color(0xFF4CAF50)
+                                                else -> Color(0xFFFF9800)
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(badgeColor.copy(alpha = 0.1f))
+                                                    .border(1.dp, badgeColor, RoundedCornerShape(8.dp))
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = portConfig.linkState,
+                                                    color = badgeColor,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                        
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        // Flow Control Dropdown
+                                        var flowExpanded by remember { mutableStateOf(false) }
+                                        val flowOptions = listOf(
+                                            0 to "TX/RX",
+                                            1 to "TX (Asymmetric Pause)",
+                                            2 to "Disabled"
+                                        )
+                                        val selectedFlowText = flowOptions.find { it.first == portConfig.flowControl }?.second ?: "TX/RX"
+
+                                        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                                            OutlinedTextField(
+                                                value = selectedFlowText,
+                                                onValueChange = {},
+                                                readOnly = true,
+                                                label = { Text("Flow Control") },
+                                                trailingIcon = {
+                                                    IconButton(onClick = { flowExpanded = true }) {
+                                                        Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            DropdownMenu(
+                                                expanded = flowExpanded,
+                                                onDismissRequest = { flowExpanded = false },
+                                                modifier = Modifier.fillMaxWidth(0.9f)
+                                            ) {
+                                                flowOptions.forEach { option ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(option.second) },
+                                                        onClick = {
+                                                            val updatedList = uiState.config.portsConfig.map {
+                                                                if (it.portName == portConfig.portName) it.copy(flowControl = option.first) else it
+                                                            }
+                                                            viewModel.updateConfig(uiState.config.copy(portsConfig = updatedList))
+                                                            flowExpanded = false
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Speed & Duplex Dropdown
+                                        var speedExpanded by remember { mutableStateOf(false) }
+                                        val speedOptions = listOf(
+                                            0 to "Auto",
+                                            1 to "1000 Mbps, Full Duplex: [AN]",
+                                            2 to "100 Mbps, Full Duplex: [AN]",
+                                            3 to "100 Mbps, Half Duplex: [AN]",
+                                            4 to "10 Mbps, Full Duplex: [AN]",
+                                            5 to "10 Mbps, Half Duplex: [AN]",
+                                            6 to "100 Mbps, Full Duplex: [Force]",
+                                            7 to "100 Mbps, Half Duplex: [Force]",
+                                            8 to "10 Mbps, Full Duplex: [Force]",
+                                            9 to "10 Mbps, Half Duplex: [Force]",
+                                            15 to "Power Off"
+                                        )
+                                        val selectedSpeedText = speedOptions.find { it.first == portConfig.speedDuplex }?.second ?: "Auto"
+
+                                        Box(modifier = Modifier.fillMaxWidth()) {
+                                            OutlinedTextField(
+                                                value = selectedSpeedText,
+                                                onValueChange = {},
+                                                readOnly = true,
+                                                label = { Text("Speed and Duplex") },
+                                                trailingIcon = {
+                                                    IconButton(onClick = { speedExpanded = true }) {
+                                                        Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            DropdownMenu(
+                                                expanded = speedExpanded,
+                                                onDismissRequest = { speedExpanded = false },
+                                                modifier = Modifier.fillMaxWidth(0.9f)
+                                            ) {
+                                                speedOptions.forEach { option ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(option.second) },
+                                                        onClick = {
+                                                            val updatedList = uiState.config.portsConfig.map {
+                                                                if (it.portName == portConfig.portName) it.copy(speedDuplex = option.first) else it
+                                                            }
+                                                            viewModel.updateConfig(uiState.config.copy(portsConfig = updatedList))
+                                                            speedExpanded = false
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -828,7 +1442,7 @@ fun AdvancedLanScreen(
                                 }
                             }
 
-                            // Clickable client links to autofill
+                            // Table Connected Device Lists
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -838,28 +1452,39 @@ fun AdvancedLanScreen(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Quick Fill from Leases List", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 12.dp))
+                                    Text("Connected & DHCP Lease Devices", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 12.dp))
                                     
-                                    if (uiState.config.staticLeases.isEmpty()) {
-                                        Text("No lease devices found to quick fill.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(vertical = 12.dp))
+                                    if (uiState.config.wolDevices.isEmpty()) {
+                                        Text("No connected devices discovered.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(vertical = 12.dp))
                                     } else {
-                                        uiState.config.staticLeases.forEach { lease ->
+                                        uiState.config.wolDevices.forEach { device ->
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .padding(vertical = 6.dp)
                                                     .clip(RoundedCornerShape(8.dp))
                                                     .background(Color(0xFFFAFAFA))
-                                                    .clickable { wolTargetMac = lease.mac }
+                                                    .clickable { wolTargetMac = device.mac }
                                                     .padding(12.dp),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Column {
-                                                    Text(lease.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                                    Text("MAC: ${lease.mac}", fontSize = 11.sp, color = Color.Gray)
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(device.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                                    Text("MAC: ${device.mac}", fontSize = 11.sp, color = Color.DarkGray)
+                                                    if (device.vendor.isNotEmpty()) {
+                                                        Text("Vendor: ${device.vendor}", fontSize = 11.sp, color = Color.Gray)
+                                                    }
                                                 }
-                                                Text("Use 🔗", fontSize = 12.sp, color = ArcherTeal, fontWeight = FontWeight.Bold)
+                                                
+                                                Button(
+                                                    onClick = { viewModel.sendWolPacket(device.mac) },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = ArcherTeal),
+                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                                    modifier = Modifier.height(32.dp)
+                                                ) {
+                                                    Text("Wake ⚡", fontSize = 11.sp, color = Color.White)
+                                                }
                                             }
                                         }
                                     }

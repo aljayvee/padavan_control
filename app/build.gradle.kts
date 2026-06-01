@@ -76,13 +76,14 @@ dependencies {
     // Local tests: jUnit, coroutines, Android runner
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation("org.mockito:mockito-core:5.12.0")
+    testImplementation(libs.mockito.core)
 
     // Instrumented tests: jUnit rules and runners
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.mockito.android)
 
     // Navigation
     implementation(libs.androidx.navigation3.ui)
@@ -90,27 +91,27 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
     // Retrofit & OkHttp
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-scalars:2.11.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation(libs.retrofit)
+    implementation(libs.converter.scalars)
+    implementation(libs.okhttp)
+    implementation(libs.logging.interceptor)
 
     // Secure Storage
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation(libs.androidx.security.crypto)
 
     // Biometrics
-    implementation("androidx.biometric:biometric:1.2.0-alpha05")
+    implementation(libs.androidx.biometric)
 
     // JSON Deserialization
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation(libs.gson)
 
     // Material Icons & Icons Core/Extended
-    implementation("androidx.compose.material:material")
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.androidx.compose.material)
+    implementation(libs.androidx.compose.material.icons.extended)
 
     // DataStore for saved configuration persistence
-    implementation("androidx.datastore:datastore-preferences:1.1.7")
+    implementation(libs.androidx.datastore.preferences)
 
     // WorkManager for background router monitoring
-    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation(libs.androidx.work.runtime.ktx)
 }

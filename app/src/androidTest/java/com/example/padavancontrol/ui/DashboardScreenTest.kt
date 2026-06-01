@@ -31,23 +31,20 @@ class DashboardScreenTest {
         val viewModel = mock(DashboardViewModel::class.java)
 
         val systemStatus = SystemStatus(
-            cpuTemp = "52°C",
-            cpuUsage = "12%",
-            memUsage = "45%",
-            uptime = "2 days, 4 hours",
-            activeConn = "150",
-            wifi2gState = "ON",
-            wifi5gState = "ON",
-            firmware = "3.4.3.9-099"
+            cpuUsage = 12,
+            ramTotal = 512 * 1024 * 1024L,
+            ramUsed = 230 * 1024 * 1024L,
+            uptime = 187200L,
+            cpuTemp = 52f
         )
         val wanStatus = WanStatus(
-            status = "Connected",
-            connectionType = "PPPoE",
-            ipAddress = "120.24.53.111",
-            subnetMask = "255.255.255.255",
+            isConnected = true,
+            wanIp = "120.24.53.111",
             gateway = "120.24.53.1",
             dns1 = "8.8.8.8",
-            dns2 = "8.8.4.4"
+            dns2 = "8.8.4.4",
+            connectionType = "PPPoE",
+            uptime = 187200L
         )
 
         val stateFlow = MutableStateFlow(
@@ -69,7 +66,8 @@ class DashboardScreenTest {
                     viewModel = viewModel,
                     onNavigateToSettings = {},
                     onNavigateToShellConsole = {},
-                    onNavigateToLogViewer = {}
+                    onNavigateToLogViewer = {},
+                    onMenuClick = {}
                 )
             }
         }

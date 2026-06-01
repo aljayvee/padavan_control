@@ -100,11 +100,11 @@ class SettingsViewModelTest {
         assertFalse(viewModel.uiState.value.rememberMe)
 
         verify(credentialStore).saveCredentials(
-            eq("admin"),
-            eq("192.168.2.2"),
-            eq("password"),
-            eq(false),
-            eq(false)
+            "admin",
+            "192.168.2.2",
+            "password",
+            false,
+            false
         )
     }
 }

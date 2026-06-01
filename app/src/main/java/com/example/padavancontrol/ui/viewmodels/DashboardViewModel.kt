@@ -26,7 +26,8 @@ data class DashboardUiState(
     val showShutdownDialog: Boolean = false,
     val wifi2GEnabled: Boolean = true,
     val wifi5GEnabled: Boolean = true,
-    val routerIp: String = ""
+    val routerIp: String = "",
+    val hardwareWarning: String? = null
 )
 
 sealed interface DashboardEvent {
@@ -46,17 +47,36 @@ class DashboardViewModel(
 
     private var pollingJob: Job? = null
 
+    private var isPollingActive = true
+
     init {
-        _uiState.update { it.copy(routerIp = credentialStore.getRouterIp()) }
+        val model = credentialStore.getHardwareModel()
+        val warning = if (model.isNotEmpty() && model != "UNKNOWN" && model != "NEWIFI3") {
+            "Warning: $model detected. Port links mapping is designed for Newifi D2."
+        } else {
+            null
+        }
+        _uiState.update { 
+            it.copy(
+                routerIp = credentialStore.getRouterIp(),
+                hardwareWarning = warning
+            ) 
+        }
         startPolling()
+    }
+
+    fun setPollingEnabled(enabled: Boolean) {
+        isPollingActive = enabled
     }
 
     private fun startPolling() {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
             while (true) {
-                fetchDashboardData(showLoadingIndicator = false)
-                delay(3000)
+                if (isPollingActive) {
+                    fetchDashboardData(showLoadingIndicator = false)
+                }
+                delay(1500)
             }
         }
     }
@@ -175,7 +195,7 @@ class DashboardViewModel(
         }
     }
 
-    override fun onCleared() {
+    public override fun onCleared() {
         super.onCleared()
         pollingJob?.cancel()
     }
