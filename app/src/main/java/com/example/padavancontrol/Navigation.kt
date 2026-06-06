@@ -398,7 +398,7 @@ fun MainNavigationContent(
                 entry<UsbPrinter> { AdvancedUsbScreen("Printer", viewModel = advancedUsbViewModel, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 
                 // Administration
-                entry<AdminSystem> { AdvancedAdminScreen("System", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
+                entry<AdminSystem> { AdvancedAdminScreen("System", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, settingsDataStore = settingsDataStore, modifier = Modifier) }
                 entry<AdminServices> { AdvancedAdminScreen("Services", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, onNavigateToTtydWebShell = { backStack.add(TtydWebShell) }, modifier = Modifier) }
                 entry<AdminOpMode> { AdvancedAdminScreen("OpMode", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 entry<AdminFirmware> { AdvancedAdminScreen("Firmware", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }

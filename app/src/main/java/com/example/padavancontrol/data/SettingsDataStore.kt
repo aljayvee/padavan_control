@@ -152,4 +152,21 @@ class SettingsDataStore(private val context: Context) {
 
     fun getHighTempThreshold(): Flow<Int> =
         context.dataStore.data.map { prefs -> prefs[highTempThresholdKey] ?: 75 }
+
+    // ─── App Language Mode ─────────────────────────────────────────
+
+    private val appLanguageModeKey = stringPreferencesKey("app_language_mode")
+
+    suspend fun saveAppLanguageMode(mode: String) {
+        context.dataStore.edit { prefs ->
+            prefs[appLanguageModeKey] = mode
+        }
+    }
+
+    fun getAppLanguageMode(): Flow<String> =
+        context.dataStore.data.map { prefs ->
+            // Migrate legacy "EN" value to "EN_ALL"
+            val stored = prefs[appLanguageModeKey] ?: "EN_ALL"
+            if (stored == "EN") "EN_ALL" else stored
+        }
 }

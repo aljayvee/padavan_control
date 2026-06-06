@@ -21,6 +21,10 @@ import com.example.padavancontrol.monitoring.RouterMonitorWorker
 import com.example.padavancontrol.theme.PadavanControlTheme
 import java.util.concurrent.TimeUnit
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+
 class MainActivity : ComponentActivity() {
 
     companion object {
@@ -35,6 +39,15 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
+            val settingsDataStore = remember { com.example.padavancontrol.data.SettingsDataStore(applicationContext) }
+            val languageMode by settingsDataStore.getAppLanguageMode().collectAsState(initial = "EN_ALL")
+            
+            // Apply app-side locale: only ZH_MOBILE_ONLY shows Chinese in the Android UI
+            com.example.padavancontrol.data.AppLocale.currentLanguage = when (languageMode) {
+                "ZH_MOBILE_ONLY" -> "CN"
+                else -> "EN" // EN_ALL and ZH_WEB_ONLY both use English in the mobile app
+            }
+
             PadavanControlTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

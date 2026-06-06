@@ -75,7 +75,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.padavancontrol.data.AppLocale
 import com.example.padavancontrol.data.PadavanRepository
+import com.example.padavancontrol.data.SettingsDataStore
 import com.example.padavancontrol.ui.viewmodels.AdvancedAdminViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.padavancontrol.data.models.AdminConfig
@@ -92,6 +94,7 @@ fun AdvancedAdminScreen(
     repository: PadavanRepository,
     onNavigateBack: () -> Unit,
     onNavigateToTtydWebShell: () -> Unit = {},
+    settingsDataStore: SettingsDataStore? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -147,7 +150,8 @@ fun AdvancedAdminScreen(
 
     var ntpPeriodExpanded by remember { mutableStateOf(false) }
     var logFloatUiExpanded by remember { mutableStateOf(false) }
-    var selectLangExpanded by remember { mutableStateOf(false) }
+
+
     var sshdEnableExpanded by remember { mutableStateOf(false) }
     
     var nvramManualExpanded by remember { mutableStateOf(false) }
@@ -640,30 +644,131 @@ fun AdvancedAdminScreen(
                                         }
                                     }
 
-                                    Text("Select WebUI Language", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
-                                    Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
-                                                .clickable { selectLangExpanded = true }
-                                                .padding(14.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            val desc = when (uiState.config.selectLang) {
-                                                "EN" -> "English"
-                                                "CN" -> "简体中文"
-                                                else -> "English"
+                                    // ── Language Mode Card ────────────────────────────────
+                                    // Observe stored language mode for instant UI sync
+                                    val storedLangMode by (settingsDataStore?.getAppLanguageMode()
+                                        ?: kotlinx.coroutines.flow.flowOf("EN_ALL"))
+                                        .collectAsStateWithLifecycle(initialValue = "EN_ALL")
+
+                                    Text(
+                                        "Select WebUI Language",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                    Text(
+                                        "Controls language for the router Web UI and/or this mobile app.",
+                                        color = Color.Gray,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(bottom = 12.dp)
+                                    )
+
+                                    // Helper: mode label data
+                                    data class LangMode(
+                                        val key: String,
+                                        val label: String,
+                                        val subtitle: String,
+                                        val selectLangValue: String,   // sent to router
+                                        val appLocale: String          // "EN" or "CN"
+                                    )
+                                    val langModes = listOf(
+                                        LangMode(
+                                            key = "EN_ALL",
+                                            label = "English",
+                                            subtitle = "Both Mobile App & Web UI in English",
+                                            selectLangValue = "EN",
+                                            appLocale = "EN"
+                                        ),
+                                        LangMode(
+                                            key = "ZH_WEB_ONLY",
+                                            label = "中文 (Web UI Only)",
+                                            subtitle = "Router Web UI in Chinese, App stays English",
+                                            selectLangValue = "CN",
+                                            appLocale = "EN"
+                                        ),
+                                        LangMode(
+                                            key = "ZH_MOBILE_ONLY",
+                                            label = "中文 (Mobile App Only)",
+                                            subtitle = "App UI in Chinese, Router Web UI stays English",
+                                            selectLangValue = "EN",
+                                            appLocale = "CN"
+                                        )
+                                    )
+
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(10.dp))
+                                            .padding(bottom = 4.dp)
+                                    ) {
+                                        langModes.forEachIndexed { index, mode ->
+                                            val isSelected = storedLangMode == mode.key
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(
+                                                        if (isSelected) ArcherTeal.copy(alpha = 0.08f)
+                                                        else Color.Transparent
+                                                    )
+                                                    .clickable {
+                                                        // 1. Update local app locale immediately
+                                                        AppLocale.currentLanguage = mode.appLocale
+                                                        // 2. Update router config field
+                                                        viewModel.updateConfig(
+                                                            uiState.config.copy(selectLang = mode.selectLangValue)
+                                                        )
+                                                        // 3. Persist mode to DataStore
+                                                        if (settingsDataStore != null) {
+                                                            coroutineScope.launch {
+                                                                settingsDataStore.saveAppLanguageMode(mode.key)
+                                                            }
+                                                        }
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                RadioButton(
+                                                    selected = isSelected,
+                                                    onClick = {
+                                                        AppLocale.currentLanguage = mode.appLocale
+                                                        viewModel.updateConfig(
+                                                            uiState.config.copy(selectLang = mode.selectLangValue)
+                                                        )
+                                                        if (settingsDataStore != null) {
+                                                            coroutineScope.launch {
+                                                                settingsDataStore.saveAppLanguageMode(mode.key)
+                                                            }
+                                                        }
+                                                    },
+                                                    colors = RadioButtonDefaults.colors(
+                                                        selectedColor = ArcherTeal
+                                                    )
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Column {
+                                                    Text(
+                                                        mode.label,
+                                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                                        fontSize = 14.sp,
+                                                        color = if (isSelected) ArcherTeal else Color.Black
+                                                    )
+                                                    Text(
+                                                        mode.subtitle,
+                                                        fontSize = 11.sp,
+                                                        color = Color.Gray
+                                                    )
+                                                }
                                             }
-                                            Text(desc, color = Color.Black, fontSize = 14.sp)
-                                            Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
-                                        }
-                                        DropdownMenu(expanded = selectLangExpanded, onDismissRequest = { selectLangExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("English") }, onClick = { viewModel.updateConfig(uiState.config.copy(selectLang = "EN")); selectLangExpanded = false })
-                                            DropdownMenuItem(text = { Text("简体中文") }, onClick = { viewModel.updateConfig(uiState.config.copy(selectLang = "CN")); selectLangExpanded = false })
+                                            if (index < langModes.lastIndex) {
+                                                androidx.compose.material3.HorizontalDivider(
+                                                    color = Color(0xFFEEEEEE),
+                                                    thickness = 1.dp
+                                                )
+                                            }
                                         }
                                     }
+                                    Spacer(Modifier.height(16.dp))
+                                    // ── End Language Mode Card ────────────────────────────
 
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
