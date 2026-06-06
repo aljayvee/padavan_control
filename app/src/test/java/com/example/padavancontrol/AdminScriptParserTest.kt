@@ -68,14 +68,14 @@ class AdminScriptParserTest : ParserTestBase() {
             var rstats_stored = "2";
             var stime_stored = "0";
             var productid = "Newifi3";
-            var btn_wps_s = "1";
-            var btn_wps_l = "3";
-            var led_enable = "0";
-            var led_internet = "1";
-            var led_usb = "2";
-            var led_wifi = "0";
-            var led_power = "2";
-            var led_ethernet = "1";
+            var ez_action_short = "1";
+            var ez_action_long = "3";
+            var front_led_all = "0";
+            var front_led_wan = "1";
+            var front_led_usb = "2";
+            var front_led_wif = "0";
+            var front_led_pwr = "2";
+            var front_led_lan = "1";
         """.trimIndent()
 
         val html = getMockHtml(mockJs)
