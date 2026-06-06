@@ -1,11 +1,16 @@
 package com.example.padavancontrol.network
 
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
+import retrofit2.http.Multipart
+import retrofit2.http.Part
+import retrofit2.http.Path
 
 interface PadavanApiService {
     @GET("index.asp")
@@ -74,4 +79,29 @@ interface PadavanApiService {
     @FormUrlEncoded
     @POST("start_apply.htm")
     suspend fun applySettings(@retrofit2.http.FieldMap fields: Map<String, String>): Response<String>
+
+    @FormUrlEncoded
+    @POST("{path}")
+    suspend fun postGeneric(
+        @retrofit2.http.Path("path") path: String,
+        @retrofit2.http.FieldMap fields: Map<String, String>
+    ): Response<String>
+
+    @GET("Settings_{model}.CFG")
+    suspend fun downloadSettings(@Path("model") model: String): Response<ResponseBody>
+
+    @GET("Storage_{model}.TBZ")
+    suspend fun downloadStorage(@Path("model") model: String): Response<ResponseBody>
+
+    @Multipart
+    @POST("restore_nv.cgi")
+    suspend fun uploadSettingsBackup(@Part file: MultipartBody.Part): Response<String>
+
+    @Multipart
+    @POST("restore_st.cgi")
+    suspend fun uploadStorageBackup(@Part file: MultipartBody.Part): Response<String>
+
+    @Multipart
+    @POST("upgrade.cgi")
+    suspend fun uploadFirmwareUpgrade(@Part file: MultipartBody.Part): Response<String>
 }

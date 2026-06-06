@@ -87,6 +87,8 @@ data object FirewallUrlFilter : NavKey
 data object FirewallMacFilter : NavKey
 @Serializable
 data object FirewallServicesFilter : NavKey
+@Serializable
+data object FirewallDnsIpsetFilter : NavKey
 
 // USB Application
 @Serializable
@@ -113,6 +115,8 @@ data object AdminFirmware : NavKey
 data object AdminSettingsBackup : NavKey
 @Serializable
 data object AdminConsole : NavKey
+@Serializable
+data object TtydWebShell : NavKey
 @Serializable
 data object AdminButtonsLed : NavKey
 

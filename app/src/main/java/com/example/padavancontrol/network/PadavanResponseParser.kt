@@ -8,6 +8,8 @@ import com.example.padavancontrol.data.models.WirelessConfig
 import com.example.padavancontrol.data.models.WirelessMacFilterRule
 import com.example.padavancontrol.data.models.FirewallConfig
 import com.example.padavancontrol.data.models.UsbShareConfig
+import com.example.padavancontrol.data.models.FolderPermission
+import com.example.padavancontrol.data.models.ShareNode
 import com.example.padavancontrol.data.models.ServiceFilterRule
 import com.example.padavancontrol.data.models.MacFilterRule
 import com.example.padavancontrol.data.models.AdminConfig
@@ -1445,6 +1447,56 @@ object PadavanResponseParser {
         val modemCmd = extractValueOrKeep(html, "modem_cmd", existingConfig.modemCmd)
         val modemZcd = extractValueOrKeep(html, "modem_zcd", existingConfig.modemZcd)
 
+        // 6. Torrent Transmission
+        val trmdEnable = extractBoolOrKeep(html, "trmd_enable", existingConfig.trmdEnable)
+        val trmdPport = extractValueOrKeep(html, "trmd_pport", existingConfig.trmdPport)
+        val trmdRport = extractValueOrKeep(html, "trmd_rport", existingConfig.trmdRport)
+
+        // 7. Download manager Aria2
+        val ariaEnable = extractBoolOrKeep(html, "aria_enable", existingConfig.ariaEnable)
+        val ariaPport = extractValueOrKeep(html, "aria_pport", existingConfig.ariaPport)
+        val ariaRport = extractValueOrKeep(html, "aria_rport", existingConfig.ariaRport)
+
+        // 8. Dynamic Accounts list
+        val accountsList = mutableListOf<String>()
+        val accountsPattern = Pattern.compile("var\\s+accounts\\s*=\\s*\\[(.*?)\\]\\s*;", Pattern.DOTALL)
+        val accountsMatcher = accountsPattern.matcher(html)
+        if (accountsMatcher.find()) {
+            val accountsStr = accountsMatcher.group(1) ?: ""
+            val itemPattern = Pattern.compile("['\"]([^'\"]*)['\"]")
+            val itemMatcher = itemPattern.matcher(accountsStr)
+            while (itemMatcher.find()) {
+                val acc = itemMatcher.group(1) ?: ""
+                if (acc.isNotEmpty()) {
+                    accountsList.add(acc)
+                }
+            }
+        } else {
+            accountsList.addAll(existingConfig.accounts)
+        }
+
+        // 9. Permissions Map
+        val permissionMap = mutableMapOf<String, List<FolderPermission>>()
+        val ifPattern = Pattern.compile("if\\s*\\(\\s*account\\s*==\\s*['\"]([^'\"]+)['\"]\\s*&&\\s*pool\\s*==\\s*['\"]([^'\"]+)['\"]\\s*\\)\\s*return\\s*\\[(.*?)\\]\\s*;", Pattern.DOTALL)
+        val ifMatcher = ifPattern.matcher(html)
+        while (ifMatcher.find()) {
+            val accountName = ifMatcher.group(1) ?: ""
+            val poolName = ifMatcher.group(2) ?: ""
+            val entriesText = ifMatcher.group(3) ?: ""
+            
+            val list = permissionMap[accountName]?.toMutableList() ?: mutableListOf()
+            val entryPattern = Pattern.compile("\\[\\s*['\"]([^'\"]*)['\"]\\s*,\\s*['\"]([^'\"]*)['\"]\\s*,\\s*['\"]([^'\"]*)['\"]\\s*\\]")
+            val entryMatcher = entryPattern.matcher(entriesText)
+            while (entryMatcher.find()) {
+                val folderName = entryMatcher.group(1) ?: ""
+                val cifsPerm = entryMatcher.group(2) ?: ""
+                val ftpPerm = entryMatcher.group(3) ?: ""
+                list.add(FolderPermission(poolName, folderName, cifsPerm, ftpPerm))
+            }
+            permissionMap[accountName] = list
+        }
+        val finalPermissions = if (permissionMap.isNotEmpty()) permissionMap else existingConfig.permissions
+
         return UsbShareConfig(
             usb3Disable = usb3Disable,
             hddSpindown = hddSpindown,
@@ -1484,8 +1536,47 @@ object PadavanResponseParser {
             wanDns3 = wanDns3,
             modemNode = modemNode,
             modemCmd = modemCmd,
-            modemZcd = modemZcd
+            modemZcd = modemZcd,
+            trmdEnable = trmdEnable,
+            trmdPport = trmdPport,
+            trmdRport = trmdRport,
+            ariaEnable = ariaEnable,
+            ariaPport = ariaPport,
+            ariaRport = ariaRport,
+            accounts = accountsList,
+            permissions = finalPermissions
         )
+    }
+
+    fun parseShareTreeList(html: String): List<ShareNode> {
+        val nodes = mutableListOf<ShareNode>()
+        val resultPattern = Pattern.compile("var\\s+result\\s*=\\s*\\[(.*?)\\]\\s*;", Pattern.DOTALL)
+        val resultMatcher = resultPattern.matcher(html)
+        val content = if (resultMatcher.find()) (resultMatcher.group(1) ?: "") else ""
+        
+        val strPattern = Pattern.compile("['\"]([^'\"]*)['\"]")
+        val strMatcher = strPattern.matcher(content)
+        
+        var layerOrder = extractValue(html, "layer_order")
+        if (layerOrder.isEmpty()) {
+            val layerPattern = Pattern.compile("var\\s+layer_order\\s*=\\s*['\"](.*?)['\"]")
+            val layerMatcher = layerPattern.matcher(html)
+            if (layerMatcher.find()) {
+                layerOrder = layerMatcher.group(1) ?: ""
+            }
+        }
+        
+        while (strMatcher.find()) {
+            val value = strMatcher.group(1) ?: ""
+            val parts = value.split("#")
+            if (parts.size >= 3) {
+                val name = parts[0].trim()
+                val id = parts[1].trim()
+                val hasSub = parts[2].trim() == "1"
+                nodes.add(ShareNode(name, id, hasSub, layerOrder))
+            }
+        }
+        return nodes
     }
 
     fun parseAdminConfig(
@@ -1498,21 +1589,63 @@ object PadavanResponseParser {
         val ntpServer1 = extractValueOrKeep(html, "ntp_server0", existingConfig.ntpServer1)
         val ntpServer2 = extractValueOrKeep(html, "ntp_server1", existingConfig.ntpServer2)
         
+        val deviceName = extractValueOrKeep(html, "computer_name", existingConfig.deviceName)
+        val ntpPeriod = extractValueOrKeep(html, "ntp_period", existingConfig.ntpPeriod)
+        val logIpAddr = extractValueOrKeep(html, "log_ipaddr", existingConfig.logIpAddr)
+        val logPort = extractValueOrKeep(html, "log_port", existingConfig.logPort)
+        val logFloatUi = extractValueOrKeep(html, "log_float_ui", existingConfig.logFloatUi)
+        val selectLang = extractValueOrKeep(html, "select_lang", existingConfig.selectLang)
+        val helpEnable = extractBoolOrKeep(html, "help_enable", existingConfig.helpEnable)
+        
         val enableTelnet = extractBoolOrKeep(html, "telnetd", existingConfig.enableTelnet)
         val telnetPort = extractValueOrKeep(html, "telnetd_port", existingConfig.telnetPort)
         
-        val enableSsh = if (html.contains("name=\"sshd_enable\"", ignoreCase = true) || html.contains("name='sshd_enable'", ignoreCase = true)) {
-            extractValue(html, "sshd_enable") != "0"
-        } else {
-            existingConfig.enableSsh
-        }
+        val sshdEnable = extractValueOrKeep(html, "sshd_enable", existingConfig.sshdEnable)
+        val enableSsh = sshdEnable != "0"
         val sshPort = extractValueOrKeep(html, "sshd_port", existingConfig.sshPort)
         val enableSftp = extractBoolOrKeep(html, "sshd_sftp", existingConfig.enableSftp)
         val enableWebdav = extractBoolOrKeep(html, "webdav_enable", existingConfig.enableWebdav)
         
-        val opMode = extractValueOrKeep(html, "op_mode", existingConfig.opMode)
+        val httpProto = extractValueOrKeep(html, "http_proto", existingConfig.httpProto)
+        val httpLanPort = extractValueOrKeep(html, "http_lanport", existingConfig.httpLanPort)
+        val httpsLPort = extractValueOrKeep(html, "https_lport", existingConfig.httpsLPort)
+        val httpAccess = extractValueOrKeep(html, "http_access", existingConfig.httpAccess)
+        
+        val winsEnable = extractBoolOrKeep(html, "wins_enable", existingConfig.winsEnable)
+        val stSambaWorkgroup = extractValueOrKeep(html, "st_samba_workgroup", existingConfig.stSambaWorkgroup)
+        val stSambaLmb = extractValueOrKeep(html, "st_samba_lmb", existingConfig.stSambaLmb)
+        
+        val ttydEnable = extractBoolOrKeep(html, "ttyd_enable", existingConfig.ttydEnable)
+        val ttydPort = extractValueOrKeep(html, "ttyd_port", existingConfig.ttydPort)
+        
+        val vlmcsdEnable = extractBoolOrKeep(html, "vlmcsd_enable", existingConfig.vlmcsdEnable)
+        val napt66Enable = extractBoolOrKeep(html, "napt66_enable", existingConfig.napt66Enable)
+        val lltdEnable = extractBoolOrKeep(html, "lltd_enable", existingConfig.lltdEnable)
+        val adscEnable = extractBoolOrKeep(html, "adsc_enable", existingConfig.adscEnable)
+        val crondEnable = extractBoolOrKeep(html, "crond_enable", existingConfig.crondEnable)
+        val crontabLogin = extractTextareaOrKeep(html, "crontab.login", existingConfig.crontabLogin)
+        val watchdogCpu = extractBoolOrKeep(html, "watchdog_cpu", existingConfig.watchdogCpu)
+        
+        val opMode = if (html.contains("sw_mode", ignoreCase = true)) {
+            extractValueOrKeep(html, "sw_mode", existingConfig.opMode)
+        } else {
+            extractValueOrKeep(html, "op_mode", existingConfig.opMode)
+        }
         val btnWpsMode = extractValueOrKeep(html, "btn_wps_mode", existingConfig.btnWpsMode)
         val ledPowerMode = extractValueOrKeep(html, "led_pwr_mode", existingConfig.ledPowerMode)
+        val btnWpsShort = extractValueOrKeep(html, "btn_wps_s", existingConfig.btnWpsShort)
+        val btnWpsLong = extractValueOrKeep(html, "btn_wps_l", existingConfig.btnWpsLong)
+        val ledEnable = extractBoolOrKeep(html, "led_enable", existingConfig.ledEnable)
+        val ledInternet = extractValueOrKeep(html, "led_internet", existingConfig.ledInternet)
+        val ledUsb = extractValueOrKeep(html, "led_usb", existingConfig.ledUsb)
+        val ledWifi = extractValueOrKeep(html, "led_wifi", existingConfig.ledWifi)
+        val ledPower = extractValueOrKeep(html, "led_power", existingConfig.ledPower)
+        val ledEthernet = extractValueOrKeep(html, "led_ethernet", existingConfig.ledEthernet)
+        
+        val nvramManual = extractValueOrKeep(html, "nvram_manual", existingConfig.nvramManual)
+        val rstatsStored = extractValueOrKeep(html, "rstats_stored", existingConfig.rstatsStored)
+        val stimeStored = extractValueOrKeep(html, "stime_stored", existingConfig.stimeStored)
+        val mtdRwfsMount = extractValueOrKeep(html, "mtd_rwfs_mount", existingConfig.mtdRwfsMount)
         
         var fwVer = existingConfig.firmwareVersion
         val verPattern = Pattern.compile("var\\s+firmware_version\\s*=\\s*\"([^\"]*)\"", Pattern.CASE_INSENSITIVE)
@@ -1528,23 +1661,62 @@ object PadavanResponseParser {
             buildD = dateMatcher.group(1) ?: ""
         }
         
+        val productId = extractValueOrKeep(html, "productid", existingConfig.productId)
+        
         return AdminConfig(
             adminUser = adminUser,
             adminPass = adminPass,
             timezone = timezone,
             ntpServer1 = ntpServer1,
             ntpServer2 = ntpServer2,
+            deviceName = deviceName,
+            ntpPeriod = ntpPeriod,
+            logIpAddr = logIpAddr,
+            logPort = logPort,
+            logFloatUi = logFloatUi,
+            selectLang = selectLang,
+            helpEnable = helpEnable,
             enableTelnet = enableTelnet,
             telnetPort = telnetPort,
             enableSsh = enableSsh,
+            sshdEnable = sshdEnable,
             sshPort = sshPort,
             enableSftp = enableSftp,
             enableWebdav = enableWebdav,
+            httpProto = httpProto,
+            httpLanPort = httpLanPort,
+            httpsLPort = httpsLPort,
+            httpAccess = httpAccess,
+            winsEnable = winsEnable,
+            stSambaWorkgroup = stSambaWorkgroup,
+            stSambaLmb = stSambaLmb,
+            ttydEnable = ttydEnable,
+            ttydPort = ttydPort,
+            vlmcsdEnable = vlmcsdEnable,
+            napt66Enable = napt66Enable,
+            lltdEnable = lltdEnable,
+            adscEnable = adscEnable,
+            crondEnable = crondEnable,
+            crontabLogin = crontabLogin,
+            watchdogCpu = watchdogCpu,
             opMode = opMode,
             btnWpsMode = btnWpsMode,
             ledPowerMode = ledPowerMode,
+            btnWpsShort = btnWpsShort,
+            btnWpsLong = btnWpsLong,
+            ledEnable = ledEnable,
+            ledInternet = ledInternet,
+            ledUsb = ledUsb,
+            ledWifi = ledWifi,
+            ledPower = ledPower,
+            ledEthernet = ledEthernet,
+            nvramManual = nvramManual,
+            rstatsStored = rstatsStored,
+            stimeStored = stimeStored,
+            mtdRwfsMount = mtdRwfsMount,
             firmwareVersion = fwVer,
-            buildDate = buildD
+            buildDate = buildD,
+            productId = productId
         )
     }
 
@@ -1552,30 +1724,52 @@ object PadavanResponseParser {
         html: String,
         existingConfig: ScriptConfig = ScriptConfig()
     ): ScriptConfig {
+        val scriptInit = extractTextareaOrKeep(html, "scripts.init_script.sh", existingConfig.scriptInit)
+        val scriptStart = extractTextareaOrKeep(html, "scripts.start_script.sh", existingConfig.scriptStart)
         val scriptStartup = extractTextareaOrKeep(html, "scripts.start_script.sh", existingConfig.scriptStartup)
         val scriptWanUp = extractTextareaOrKeep(html, "scripts.post_wan_script.sh", existingConfig.scriptWanUp)
-        val scriptWanDown = extractTextareaOrKeep(html, "scripts.post_wandn_script.sh", existingConfig.scriptWanDown).ifEmpty {
-            extractTextareaOrKeep(html, "scripts.ez_buttons_script.sh", existingConfig.scriptWanDown)
-        }
+        val scriptWanDown = extractTextareaOrKeep(html, "scripts.post_wandn_script.sh", existingConfig.scriptWanDown)
         val scriptShutdown = extractTextareaOrKeep(html, "scripts.shutdown_script.sh", existingConfig.scriptShutdown)
         val scriptIpRules = extractTextareaOrKeep(html, "scripts.post_iptables_script.sh", existingConfig.scriptIpRules)
+        val scriptEzButton = extractTextareaOrKeep(html, "scripts.ez_buttons_script.sh", existingConfig.scriptEzButton)
         
-        val pingEnabled = extractBoolOrKeep(html, "di_poll_mode", existingConfig.pingEnabled)
+        val pingPollMode = extractValueOrKeep(html, "di_poll_mode", existingConfig.pingPollMode)
+        val pingEnabled = pingPollMode != "0"
+        
         val pingHost1 = extractValueOrKeep(html, "di_addr0", existingConfig.pingHost1)
         val pingHost2 = extractValueOrKeep(html, "di_addr1", existingConfig.pingHost2)
+        val pingHost3 = extractValueOrKeep(html, "di_addr2", existingConfig.pingHost3)
+        val pingHost4 = extractValueOrKeep(html, "di_addr3", existingConfig.pingHost4)
+        val pingHost5 = extractValueOrKeep(html, "di_addr4", existingConfig.pingHost5)
+        val pingHost6 = extractValueOrKeep(html, "di_addr5", existingConfig.pingHost6)
+        
         val pingPeriod = extractIntOrKeep(html, "di_time_done", existingConfig.pingPeriod)
+        val pingIntervalSuccess = extractIntOrKeep(html, "di_time_done", existingConfig.pingIntervalSuccess)
+        val pingIntervalFail = extractIntOrKeep(html, "di_time_fail", existingConfig.pingIntervalFail)
+        val pingTimeout = extractIntOrKeep(html, "di_time_timeout", existingConfig.pingTimeout)
         val pingAction = extractValueOrKeep(html, "di_lost_action", existingConfig.pingAction)
         
         return ScriptConfig(
+            scriptInit = scriptInit,
+            scriptStart = scriptStart,
             scriptStartup = scriptStartup,
             scriptWanUp = scriptWanUp,
             scriptWanDown = scriptWanDown,
             scriptShutdown = scriptShutdown,
             scriptIpRules = scriptIpRules,
+            scriptEzButton = scriptEzButton,
             pingEnabled = pingEnabled,
+            pingPollMode = pingPollMode,
             pingHost1 = pingHost1,
             pingHost2 = pingHost2,
+            pingHost3 = pingHost3,
+            pingHost4 = pingHost4,
+            pingHost5 = pingHost5,
+            pingHost6 = pingHost6,
             pingPeriod = pingPeriod,
+            pingIntervalSuccess = pingIntervalSuccess,
+            pingIntervalFail = pingIntervalFail,
+            pingTimeout = pingTimeout,
             pingAction = pingAction
         )
     }

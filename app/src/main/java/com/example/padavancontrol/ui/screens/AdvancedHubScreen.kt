@@ -54,6 +54,7 @@ import com.example.padavancontrol.FirewallMacFilter
 import com.example.padavancontrol.FirewallNetfilter
 import com.example.padavancontrol.FirewallServicesFilter
 import com.example.padavancontrol.FirewallUrlFilter
+import com.example.padavancontrol.FirewallDnsIpsetFilter
 import com.example.padavancontrol.LanDhcp
 import com.example.padavancontrol.LanIp
 import com.example.padavancontrol.LanIptv
@@ -221,7 +222,8 @@ fun AdvancedSidebarContent(
                     "Netfilter SPI rules" to FirewallNetfilter,
                     "URL Web Filter" to FirewallUrlFilter,
                     "Hardware MAC Filter" to FirewallMacFilter,
-                    "Network Services Filter" to FirewallServicesFilter
+                    "Network Services Filter" to FirewallServicesFilter,
+                    "DNS ipset Blacklist" to FirewallDnsIpsetFilter
                 ),
                 onItemClick = onNavigateToPage
             )

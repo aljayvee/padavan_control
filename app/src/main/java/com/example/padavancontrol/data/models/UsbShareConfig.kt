@@ -48,5 +48,34 @@ data class UsbShareConfig(
     val wanDns3: String = "",
     val modemNode: String = "0",
     val modemCmd: String = "",
-    val modemZcd: String = "0"
+    val modemZcd: String = "0",
+
+    // 6. Torrent Transmission (Advanced_AiDisk_others.asp)
+    val trmdEnable: Boolean = false,
+    val trmdPport: String = "51413",
+    val trmdRport: String = "9091",
+
+    // 7. Download manager Aria2 (Advanced_AiDisk_others.asp)
+    val ariaEnable: Boolean = false,
+    val ariaPport: String = "6881",
+    val ariaRport: String = "6800",
+
+    // 8. Dynamic Accounts and Share Permissions
+    val accounts: List<String> = emptyList(),
+    val permissions: Map<String, List<FolderPermission>> = emptyMap() // Account Name -> Permissions List
 )
+
+data class FolderPermission(
+    val poolName: String,
+    val folderName: String,
+    val cifsPermission: String, // "3" (R/W), "1" (R), "0" (No)
+    val ftpPermission: String // "3" (R/W), "2" (W), "1" (R), "0" (No)
+)
+
+data class ShareNode(
+    val name: String,
+    val id: String,
+    val hasSub: Boolean,
+    val layerOrder: String
+)
+

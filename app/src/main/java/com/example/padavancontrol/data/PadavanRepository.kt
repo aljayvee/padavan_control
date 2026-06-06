@@ -7,6 +7,8 @@ import com.example.padavancontrol.data.models.WanStatus
 import com.example.padavancontrol.data.models.WirelessConfig
 import com.example.padavancontrol.data.models.FirewallConfig
 import com.example.padavancontrol.data.models.UsbShareConfig
+import com.example.padavancontrol.data.models.FolderPermission
+import com.example.padavancontrol.data.models.ShareNode
 import com.example.padavancontrol.data.models.ServiceFilterRule
 import com.example.padavancontrol.data.models.MacFilterRule
 import com.example.padavancontrol.data.models.AdminConfig
@@ -14,6 +16,8 @@ import com.example.padavancontrol.data.models.ScriptConfig
 import com.example.padavancontrol.network.PadavanApiService
 import com.example.padavancontrol.network.PadavanResponseParser
 import com.example.padavancontrol.network.RetrofitClient
+import okhttp3.ResponseBody
+import okhttp3.MultipartBody
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -64,12 +68,29 @@ interface PadavanRepository {
     suspend fun saveFirewallConfig(page: String, config: FirewallConfig): Boolean
     fun getUsbShareConfig(page: String): Flow<Result<UsbShareConfig>>
     suspend fun saveUsbShareConfig(page: String, config: UsbShareConfig): Boolean
+    fun getShareTree(layerOrder: String): Flow<Result<List<ShareNode>>>
+    suspend fun createUsbAccount(account: String, pass: String): Boolean
+    suspend fun deleteUsbAccount(account: String): Boolean
+    suspend fun modifyUsbAccount(account: String, newAccount: String, newPass: String): Boolean
+    suspend fun createUsbFolder(pool: String, folder: String): Boolean
+    suspend fun deleteUsbFolder(pool: String, folder: String): Boolean
+    suspend fun modifyUsbFolder(pool: String, folder: String, newFolder: String): Boolean
+    suspend fun setUsbPermission(account: String, pool: String, folder: String, protocol: String, permission: String): Boolean
     suspend fun addServiceFilterRule(rule: ServiceFilterRule): Boolean
     suspend fun deleteServiceFilterRule(index: Int): Boolean
     suspend fun addUrlKeyword(keyword: String): Boolean
     suspend fun deleteUrlKeyword(index: Int): Boolean
     suspend fun addMacFilterRule(rule: MacFilterRule): Boolean
     suspend fun deleteMacFilterRule(index: Int): Boolean
+    fun getRouterIp(): String
+    suspend fun commitFlash(action: String): Boolean
+    suspend fun restoreNvramDefaults(): Boolean
+    suspend fun restoreStorageDefaults(): Boolean
+    suspend fun downloadSettingsBackup(model: String): okhttp3.ResponseBody?
+    suspend fun downloadStorageBackup(model: String): okhttp3.ResponseBody?
+    suspend fun uploadSettingsBackup(file: okhttp3.MultipartBody.Part): Boolean
+    suspend fun uploadStorageBackup(file: okhttp3.MultipartBody.Part): Boolean
+    suspend fun uploadFirmwareUpgrade(file: okhttp3.MultipartBody.Part): Boolean
     fun getAdminConfig(page: String): Flow<Result<AdminConfig>>
     suspend fun saveAdminConfig(page: String, config: AdminConfig): Boolean
     fun getScriptConfig(page: String): Flow<Result<ScriptConfig>>
@@ -398,10 +419,90 @@ class DefaultPadavanRepository(
         }
     }
 
-    override suspend fun commitFlash(): Boolean {
+    override fun getRouterIp(): String = credentialStore.getRouterIp()
+
+    override suspend fun commitFlash(): Boolean = commitFlash("commit_nvram")
+
+    override suspend fun commitFlash(action: String): Boolean {
         return try {
-            getService().commitFlash().isSuccessful
+            getService().commitFlash(nvramAction = action).isSuccessful
         } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun restoreNvramDefaults(): Boolean {
+        return try {
+            val fields = mapOf(
+                "action_mode" to " RestoreNVRAM ",
+                "current_page" to "Advanced_SettingBackup_Content.asp",
+                "next_page" to "Advanced_SettingBackup_Content.asp"
+            )
+            getService().applySettings(fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun restoreStorageDefaults(): Boolean {
+        return try {
+            val fields = mapOf(
+                "action_mode" to " RestoreStorage ",
+                "current_page" to "Advanced_SettingBackup_Content.asp",
+                "next_page" to "Advanced_SettingBackup_Content.asp"
+            )
+            getService().applySettings(fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun downloadSettingsBackup(model: String): ResponseBody? {
+        return try {
+            val response = getService().downloadSettings(model)
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    override suspend fun downloadStorageBackup(model: String): ResponseBody? {
+        return try {
+            val response = getService().downloadStorage(model)
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    override suspend fun uploadSettingsBackup(file: MultipartBody.Part): Boolean {
+        return try {
+            getService().uploadSettingsBackup(file).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun uploadStorageBackup(file: MultipartBody.Part): Boolean {
+        return try {
+            getService().uploadStorageBackup(file).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun uploadFirmwareUpgrade(file: MultipartBody.Part): Boolean {
+        return try {
+            getService().uploadFirmwareUpgrade(file).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
             false
         }
     }
@@ -1172,6 +1273,16 @@ class DefaultPadavanRepository(
                 fields["st_samba_mode"] = config.sambaMode
                 fields["st_samba_lmb"] = config.sambaLmb
                 fields["st_samba_fp"] = config.sambaFp
+
+                // Torrent Transmission
+                fields["trmd_enable"] = if (config.trmdEnable) "1" else "0"
+                fields["trmd_pport"] = config.trmdPport
+                fields["trmd_rport"] = config.trmdRport
+
+                // Download manager Aria2
+                fields["aria_enable"] = if (config.ariaEnable) "1" else "0"
+                fields["aria_pport"] = config.ariaPport
+                fields["aria_rport"] = config.ariaRport
             } else if (page.contains("ftp", ignoreCase = true)) {
                 fields["sid_list"] = "Storage;"
                 fields["enable_ftp"] = if (config.enableFtp) "1" else "0"
@@ -1214,6 +1325,127 @@ class DefaultPadavanRepository(
             } else {
                 false
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override fun getShareTree(layerOrder: String): Flow<Result<List<ShareNode>>> = flow {
+        try {
+            val fields = mapOf(
+                "layer_order" to layerOrder,
+                "motion" to "gettree"
+            )
+            val response = getService().postGeneric("aidisk/getsharearray.asp", fields)
+            if (response.isSuccessful && response.body() != null) {
+                val nodes = PadavanResponseParser.parseShareTreeList(response.body()!!)
+                emit(Result.success(nodes))
+            } else {
+                emit(Result.failure(IOException("HTTP Error: ${response.code()}")))
+            }
+        } catch (e: Exception) {
+            emit(Result.failure(e))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override suspend fun createUsbAccount(account: String, pass: String): Boolean {
+        return try {
+            val fields = mapOf(
+                "account" to account,
+                "password" to pass,
+                "confirm_password" to pass
+            )
+            getService().postGeneric("aidisk/create_account.asp", fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun deleteUsbAccount(account: String): Boolean {
+        return try {
+            val fields = mapOf(
+                "account" to account
+            )
+            getService().postGeneric("aidisk/delete_account.asp", fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun modifyUsbAccount(account: String, newAccount: String, newPass: String): Boolean {
+        return try {
+            val fields = mapOf(
+                "account" to account,
+                "new_account" to newAccount,
+                "new_password" to newPass,
+                "confirm_password" to newPass
+            )
+            getService().postGeneric("aidisk/modify_account.asp", fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun createUsbFolder(pool: String, folder: String): Boolean {
+        return try {
+            val fields = mapOf(
+                "pool" to pool,
+                "folder" to folder
+            )
+            getService().postGeneric("aidisk/create_sharedfolder.asp", fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun deleteUsbFolder(pool: String, folder: String): Boolean {
+        return try {
+            val fields = mapOf(
+                "pool" to pool,
+                "folder" to folder
+            )
+            getService().postGeneric("aidisk/delete_sharedfolder.asp", fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun modifyUsbFolder(pool: String, folder: String, newFolder: String): Boolean {
+        return try {
+            val fields = mapOf(
+                "pool" to pool,
+                "folder" to folder,
+                "new_folder" to newFolder
+            )
+            getService().postGeneric("aidisk/modify_sharedfolder.asp", fields).isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun setUsbPermission(
+        account: String,
+        pool: String,
+        folder: String,
+        protocol: String,
+        permission: String
+    ): Boolean {
+        return try {
+            val fields = mapOf(
+                "account" to account,
+                "pool" to pool,
+                "folder" to folder,
+                "protocol" to protocol,
+                "permission" to permission
+            )
+            getService().postGeneric("aidisk/set_account_permission.asp", fields).isSuccessful
         } catch (e: Exception) {
             e.printStackTrace()
             false
@@ -1350,7 +1582,7 @@ class DefaultPadavanRepository(
 
             if (page.contains("System", ignoreCase = true)) {
                 fields["sid_list"] = "LANHostConfig;General;Storage;"
-                fields["computer_name"] = "Router"
+                fields["computer_name"] = config.deviceName
                 fields["http_username"] = config.adminUser
                 if (config.adminPass.isNotEmpty()) {
                     fields["http_passwd"] = config.adminPass
@@ -1358,24 +1590,61 @@ class DefaultPadavanRepository(
                     fields["v_password2"] = config.adminPass
                 }
                 fields["time_zone"] = config.timezone
+                fields["ntp_period"] = config.ntpPeriod
                 fields["ntp_server0"] = config.ntpServer1
                 fields["ntp_server1"] = config.ntpServer2
+                fields["log_ipaddr"] = config.logIpAddr
+                fields["log_port"] = config.logPort
+                fields["log_float_ui"] = config.logFloatUi
+                fields["select_lang"] = config.selectLang
+                fields["help_enable"] = if (config.helpEnable) "1" else "0"
                 fields["action_script"] = "restart_httpd"
             } else if (page.contains("Services", ignoreCase = true)) {
                 fields["sid_list"] = "LANHostConfig;General;Storage;"
                 fields["telnetd"] = if (config.enableTelnet) "1" else "0"
-                fields["sshd_enable"] = if (config.enableSsh) (if (config.enableSftp) "1" else "2") else "0"
+                fields["sshd_enable"] = config.sshdEnable
                 fields["sshd_port"] = config.sshPort
                 fields["sshd_sftp"] = if (config.enableSftp) "1" else "0"
                 fields["webdav_enable"] = if (config.enableWebdav) "1" else "0"
+                fields["http_proto"] = config.httpProto
+                fields["http_lanport"] = config.httpLanPort
+                fields["https_lport"] = config.httpsLPort
+                fields["http_access"] = config.httpAccess
+                fields["wins_enable"] = if (config.winsEnable) "1" else "0"
+                fields["st_samba_workgroup"] = config.stSambaWorkgroup
+                fields["st_samba_lmb"] = config.stSambaLmb
+                fields["ttyd_enable"] = if (config.ttydEnable) "1" else "0"
+                fields["ttyd_port"] = config.ttydPort
+                fields["vlmcsd_enable"] = if (config.vlmcsdEnable) "1" else "0"
+                fields["napt66_enable"] = if (config.napt66Enable) "1" else "0"
+                fields["lltd_enable"] = if (config.lltdEnable) "1" else "0"
+                fields["adsc_enable"] = if (config.adscEnable) "1" else "0"
+                fields["crond_enable"] = if (config.crondEnable) "1" else "0"
+                fields["crontab.login"] = config.crontabLogin
+                fields["watchdog_cpu"] = if (config.watchdogCpu) "1" else "0"
             } else if (page.contains("OperationMode", ignoreCase = true) || page.contains("OpMode", ignoreCase = true)) {
                 fields["action_mode"] = " Restart "
                 fields["sid_list"] = "General;"
                 fields["op_mode"] = config.opMode
+                fields["sw_mode"] = config.opMode
             } else if (page.contains("Buttons", ignoreCase = true) || page.contains("Tweaks", ignoreCase = true)) {
                 fields["sid_list"] = "General;"
                 fields["btn_wps_mode"] = config.btnWpsMode
                 fields["led_pwr_mode"] = config.ledPowerMode
+                fields["btn_wps_s"] = config.btnWpsShort
+                fields["btn_wps_l"] = config.btnWpsLong
+                fields["led_enable"] = if (config.ledEnable) "1" else "0"
+                fields["led_internet"] = config.ledInternet
+                fields["led_usb"] = config.ledUsb
+                fields["led_wifi"] = config.ledWifi
+                fields["led_power"] = config.ledPower
+                fields["led_ethernet"] = config.ledEthernet
+            } else if (page.contains("Backup", ignoreCase = true)) {
+                fields["sid_list"] = "General;"
+                fields["nvram_manual"] = config.nvramManual
+                fields["rstats_stored"] = config.rstatsStored
+                fields["stime_stored"] = config.stimeStored
+                fields["mtd_rwfs_mount"] = config.mtdRwfsMount
             }
 
             val response = applyAndCommitSettings(fields)
@@ -1437,18 +1706,25 @@ class DefaultPadavanRepository(
 
             if (page.contains("Scripts", ignoreCase = true)) {
                 fields["sid_list"] = "General;"
-                fields["scripts.start_script.sh"] = config.scriptStartup
+                fields["scripts.init_script.sh"] = config.scriptInit
+                fields["scripts.start_script.sh"] = config.scriptStart
                 fields["scripts.post_wan_script.sh"] = config.scriptWanUp
                 fields["scripts.post_wandn_script.sh"] = config.scriptWanDown
-                fields["scripts.ez_buttons_script.sh"] = config.scriptWanDown
+                fields["scripts.ez_buttons_script.sh"] = config.scriptEzButton
                 fields["scripts.shutdown_script.sh"] = config.scriptShutdown
                 fields["scripts.post_iptables_script.sh"] = config.scriptIpRules
             } else if (page.contains("InetDetect", ignoreCase = true) || page.contains("Detector", ignoreCase = true)) {
                 fields["sid_list"] = "General;"
-                fields["di_poll_mode"] = if (config.pingEnabled) "1" else "0"
+                fields["di_poll_mode"] = config.pingPollMode
                 fields["di_addr0"] = config.pingHost1
                 fields["di_addr1"] = config.pingHost2
-                fields["di_time_done"] = config.pingPeriod.toString()
+                fields["di_addr2"] = config.pingHost3
+                fields["di_addr3"] = config.pingHost4
+                fields["di_addr4"] = config.pingHost5
+                fields["di_addr5"] = config.pingHost6
+                fields["di_time_done"] = config.pingIntervalSuccess.toString()
+                fields["di_time_fail"] = config.pingIntervalFail.toString()
+                fields["di_time_timeout"] = config.pingTimeout.toString()
                 fields["di_lost_action"] = config.pingAction
             }
 

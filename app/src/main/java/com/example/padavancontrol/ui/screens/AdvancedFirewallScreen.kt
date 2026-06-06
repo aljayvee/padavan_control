@@ -97,6 +97,7 @@ fun AdvancedFirewallScreen(
             "URLFilter" -> "Advanced_URLFilter_Content.asp"
             "MACFilter" -> "Advanced_MACFilter_Content.asp"
             "ServicesFilter" -> "Advanced_Firewall_Content.asp"
+            "DnsIpsetFilter" -> "Advanced_DHCP_Content.asp"
             else -> "Advanced_BasicFirewall_Content.asp"
         }
     }
@@ -108,6 +109,7 @@ fun AdvancedFirewallScreen(
             "URLFilter" -> "Firewall - URL blocked keywords"
             "MACFilter" -> "Firewall - Hardware MAC Filter"
             "ServicesFilter" -> "Firewall - Network Services Filter"
+            "DnsIpsetFilter" -> "Firewall - Domain DNS Blacklist"
             else -> "Firewall settings"
         }
     }
@@ -123,6 +125,7 @@ fun AdvancedFirewallScreen(
 
     // Validation/Input states for rules
     var urlKeywordInput by remember { mutableStateOf("") }
+    var dnsDomainInput by remember { mutableStateOf("") }
     
     var macFilterInputMac by remember { mutableStateOf("") }
     var macFilterInputTime by remember { mutableStateOf("00002359") }
@@ -143,6 +146,7 @@ fun AdvancedFirewallScreen(
     var natTypeExpanded by remember { mutableStateOf(false) }
     var macFilterMethodExpanded by remember { mutableStateOf(false) }
     var serviceFilterDefaultExpanded by remember { mutableStateOf(false) }
+    var maxConnExpanded by remember { mutableStateOf(false) }
 
     fun loadConfig() {
         viewModel.loadConfig(pagePath)
@@ -179,6 +183,25 @@ fun AdvancedFirewallScreen(
 
     fun deleteKeyword(index: Int) {
         viewModel.deleteUrlKeyword(index, pagePath)
+    }
+
+    // DNS ipset actions
+    fun addDomain() {
+        val domain = dnsDomainInput.trim().lowercase()
+        if (domain.isEmpty()) {
+            Toast.makeText(context, "Domain name cannot be empty.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (domain.contains("://") || domain.contains("/") || domain.contains(":")) {
+            Toast.makeText(context, "Invalid domain format. Do not include http://, paths, or ports.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        viewModel.addDomainBlock(domain, pagePath)
+        dnsDomainInput = ""
+    }
+
+    fun deleteDomain(domain: String) {
+        viewModel.deleteDomainBlock(domain, pagePath)
     }
 
     // MAC filter actions
@@ -725,13 +748,26 @@ fun AdvancedFirewallScreen(
                                         )
                                     }
 
-                                    OutlinedTextField(
-                                        value = uiState.config.nfMaxConn,
-                                        onValueChange = { viewModel.updateConfig(uiState.config.copy(nfMaxConn = it)) },
-                                        label = { Text("Maximum NAT Connections limit") },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                                    )
+                                    Text("Maximum NAT Connections limit", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+                                                .clickable { maxConnExpanded = true }
+                                                .padding(14.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(uiState.config.nfMaxConn, color = Color.Black, fontSize = 14.sp)
+                                            Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                                        }
+                                        DropdownMenu(expanded = maxConnExpanded, onDismissRequest = { maxConnExpanded = false }) {
+                                            listOf("8192", "16384", "32768", "65536", "131072", "262144").forEach { valOpt ->
+                                                DropdownMenuItem(text = { Text(valOpt) }, onClick = { viewModel.updateConfig(uiState.config.copy(nfMaxConn = valOpt)); maxConnExpanded = false })
+                                            }
+                                        }
+                                    }
 
                                     // NAT Type Dropdown
                                     Text("NAT Translation Type", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
@@ -889,20 +925,16 @@ fun AdvancedFirewallScreen(
                                         )
                                     }
 
-                                    OutlinedTextField(
-                                        value = uiState.config.urlFilterDate,
-                                        onValueChange = { viewModel.updateConfig(uiState.config.copy(urlFilterDate = it)) },
-                                        label = { Text("Filter Days Bitmask (Mon-Sun)") },
-                                        placeholder = { Text("1111111") },
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                    DaysOfWeekSelector(
+                                        selectedDays = uiState.config.urlFilterDate,
+                                        onDaysChanged = { viewModel.updateConfig(uiState.config.copy(urlFilterDate = it)) },
+                                        modifier = Modifier.padding(bottom = 16.dp)
                                     )
 
-                                    OutlinedTextField(
-                                        value = uiState.config.urlFilterTime,
-                                        onValueChange = { viewModel.updateConfig(uiState.config.copy(urlFilterTime = it)) },
-                                        label = { Text("Filter Active Hours (HHMMHHMM)") },
-                                        placeholder = { Text("00002359") },
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                    TimeIntervalSelector(
+                                        timeRange = uiState.config.urlFilterTime,
+                                        onTimeRangeChanged = { viewModel.updateConfig(uiState.config.copy(urlFilterTime = it)) },
+                                        modifier = Modifier.padding(bottom = 16.dp)
                                     )
 
                                     OutlinedTextField(
@@ -919,8 +951,8 @@ fun AdvancedFirewallScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column {
-                                            Text("Invert Keyword Match", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                            Text("Block all EXCEPT keywords", color = Color.Gray, fontSize = 12.sp)
+                                            Text("Exclude Filtered Host (Invert Match)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                            Text("Inverts rule behavior for the target MAC", color = Color.Gray, fontSize = 12.sp)
                                         }
                                         Switch(
                                             checked = uiState.config.urlFilterInvert,
@@ -1082,20 +1114,16 @@ fun AdvancedFirewallScreen(
                                         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                                     )
 
-                                    OutlinedTextField(
-                                        value = macFilterInputTime,
-                                        onValueChange = { macFilterInputTime = it },
-                                        label = { Text("Time Range (HHMMHHMM)") },
-                                        placeholder = { Text("00002359") },
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                    DaysOfWeekSelector(
+                                        selectedDays = macFilterInputDate,
+                                        onDaysChanged = { macFilterInputDate = it },
+                                        modifier = Modifier.padding(bottom = 16.dp)
                                     )
 
-                                    OutlinedTextField(
-                                        value = macFilterInputDate,
-                                        onValueChange = { macFilterInputDate = it },
-                                        label = { Text("Days Bitmask (Mon-Sun)") },
-                                        placeholder = { Text("1111111") },
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                                    TimeIntervalSelector(
+                                        timeRange = macFilterInputTime,
+                                        onTimeRangeChanged = { macFilterInputTime = it },
+                                        modifier = Modifier.padding(bottom = 16.dp)
                                     )
 
                                     Button(
@@ -1237,20 +1265,16 @@ fun AdvancedFirewallScreen(
                                         }
                                     }
 
-                                    OutlinedTextField(
-                                        value = uiState.config.filterLwDate,
-                                        onValueChange = { viewModel.updateConfig(uiState.config.copy(filterLwDate = it)) },
-                                        label = { Text("Active Days Bitmask (Mon-Sun)") },
-                                        placeholder = { Text("1111111") },
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                    DaysOfWeekSelector(
+                                        selectedDays = uiState.config.filterLwDate,
+                                        onDaysChanged = { viewModel.updateConfig(uiState.config.copy(filterLwDate = it)) },
+                                        modifier = Modifier.padding(bottom = 16.dp)
                                     )
 
-                                    OutlinedTextField(
-                                        value = uiState.config.filterLwTime,
-                                        onValueChange = { viewModel.updateConfig(uiState.config.copy(filterLwTime = it)) },
-                                        label = { Text("Active Hours (HHMMHHMM)") },
-                                        placeholder = { Text("00002359") },
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                                    TimeIntervalSelector(
+                                        timeRange = uiState.config.filterLwTime,
+                                        onTimeRangeChanged = { viewModel.updateConfig(uiState.config.copy(filterLwTime = it)) },
+                                        modifier = Modifier.padding(bottom = 16.dp)
                                     )
 
                                     OutlinedTextField(
@@ -1390,6 +1414,96 @@ fun AdvancedFirewallScreen(
                                 }
                             }
                         }
+                        "DnsIpsetFilter" -> {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                                    .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(12.dp)),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("Dynamic DNS Hijacking + ipset", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 12.dp))
+                                    Text(
+                                        text = "Resolves domains locally via dnsmasq and blocks matching client requests at Layer 3/4 in kernel memory. This is highly efficient and fully supports HTTPS.",
+                                        color = Color.Gray,
+                                        fontSize = 12.sp,
+                                        lineHeight = 16.sp
+                                    )
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                                    .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(12.dp)),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("Add Blocked Domain", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 12.dp))
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        OutlinedTextField(
+                                            value = dnsDomainInput,
+                                            onValueChange = { dnsDomainInput = it },
+                                            label = { Text("Domain (e.g. facebook.com)") },
+                                            placeholder = { Text("domain.com") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        IconButton(
+                                            onClick = { addDomain() },
+                                            modifier = Modifier
+                                                .size(54.dp)
+                                                .background(ArcherTeal, RoundedCornerShape(8.dp))
+                                        ) {
+                                            Icon(imageVector = Icons.Default.Add, contentDescription = "Add", tint = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                                    .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(12.dp)),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("Blocked Domains List", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 12.dp))
+
+                                    if (uiState.blockedDomains.isEmpty()) {
+                                        Text("No domains blocked yet.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(vertical = 12.dp))
+                                    } else {
+                                        uiState.blockedDomains.forEach { domain ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 4.dp)
+                                                    .background(Color(0xFFFAFAFA), RoundedCornerShape(8.dp))
+                                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(domain, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                                IconButton(onClick = { deleteDomain(domain) }) {
+                                                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // Save settings button (for General & Netfilter forms, which are saved in batch)
@@ -1427,4 +1541,208 @@ fun isValidIpOrSubnet(ip: String): Boolean {
     val normalIpPattern = "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$".toRegex()
     val subnetPattern = "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/([0-9]|[1-2][0-9]|3[0-2])$".toRegex()
     return ip.matches(normalIpPattern) || ip.matches(subnetPattern)
+}
+
+@Composable
+fun DaysOfWeekSelector(
+    selectedDays: String,
+    onDaysChanged: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val daysBitmask = if (selectedDays.length == 7) selectedDays else "1111111"
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "Active Days of Week",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            dayLabels.forEachIndexed { index, label ->
+                val isSelected = daysBitmask[index] == '1'
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(19.dp))
+                        .background(if (isSelected) ArcherTeal else Color(0xFFF0F0F0))
+                        .border(1.dp, if (isSelected) ArcherTeal else Color.LightGray, RoundedCornerShape(19.dp))
+                        .clickable {
+                            val newBitmask = StringBuilder(daysBitmask).apply {
+                                setCharAt(index, if (isSelected) '0' else '1')
+                            }.toString()
+                            onDaysChanged(newBitmask)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label.take(1),
+                        color = if (isSelected) Color.White else Color.DarkGray,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TimeIntervalSelector(
+    timeRange: String,
+    onTimeRangeChanged: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val safeTime = if (timeRange.length == 8) timeRange else "00002359"
+    val startHour = safeTime.substring(0, 2)
+    val startMin = safeTime.substring(2, 4)
+    val endHour = safeTime.substring(4, 6)
+    val endMin = safeTime.substring(6, 8)
+
+    var startHourExpanded by remember { mutableStateOf(false) }
+    var startMinExpanded by remember { mutableStateOf(false) }
+    var endHourExpanded by remember { mutableStateOf(false) }
+    var endMinExpanded by remember { mutableStateOf(false) }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "Active Time Range",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+                            .clickable { startHourExpanded = true }
+                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(startHour, fontSize = 13.sp)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                    DropdownMenu(expanded = startHourExpanded, onDismissRequest = { startHourExpanded = false }) {
+                        (0..23).forEach { h ->
+                            val hStr = String.format("%02d", h)
+                            DropdownMenuItem(
+                                text = { Text(hStr) },
+                                onClick = {
+                                    val newRange = hStr + startMin + endHour + endMin
+                                    onTimeRangeChanged(newRange)
+                                    startHourExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Text(" : ", modifier = Modifier.padding(horizontal = 2.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+                            .clickable { startMinExpanded = true }
+                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(startMin, fontSize = 13.sp)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                    DropdownMenu(expanded = startMinExpanded, onDismissRequest = { startMinExpanded = false }) {
+                        val minutes = (0..55 step 5).map { String.format("%02d", it) } + "59"
+                        minutes.forEach { mStr ->
+                            DropdownMenuItem(
+                                text = { Text(mStr) },
+                                onClick = {
+                                    val newRange = startHour + mStr + endHour + endMin
+                                    onTimeRangeChanged(newRange)
+                                    startMinExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Text("to", fontWeight = FontWeight.Medium, fontSize = 13.sp)
+
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+                            .clickable { endHourExpanded = true }
+                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(endHour, fontSize = 13.sp)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                    DropdownMenu(expanded = endHourExpanded, onDismissRequest = { endHourExpanded = false }) {
+                        (0..23).forEach { h ->
+                            val hStr = String.format("%02d", h)
+                            DropdownMenuItem(
+                                text = { Text(hStr) },
+                                onClick = {
+                                    val newRange = startHour + startMin + hStr + endMin
+                                    onTimeRangeChanged(newRange)
+                                    endHourExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Text(" : ", modifier = Modifier.padding(horizontal = 2.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+                            .clickable { endMinExpanded = true }
+                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(endMin, fontSize = 13.sp)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                    DropdownMenu(expanded = endMinExpanded, onDismissRequest = { endMinExpanded = false }) {
+                        val minutes = (0..55 step 5).map { String.format("%02d", it) } + "59"
+                        minutes.forEach { mStr ->
+                            DropdownMenuItem(
+                                text = { Text(mStr) },
+                                onClick = {
+                                    val newRange = startHour + startMin + endHour + mStr
+                                    onTimeRangeChanged(newRange)
+                                    endMinExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

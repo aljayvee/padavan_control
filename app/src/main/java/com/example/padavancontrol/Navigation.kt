@@ -44,6 +44,7 @@ import com.example.padavancontrol.ui.screens.AdvancedFirewallScreen
 import com.example.padavancontrol.ui.screens.AdvancedUsbScreen
 import com.example.padavancontrol.ui.screens.AdvancedAdminScreen
 import com.example.padavancontrol.ui.screens.AdvancedScriptScreen
+import com.example.padavancontrol.ui.screens.TtydWebShellScreen
 import com.example.padavancontrol.ui.viewmodels.DashboardViewModel
 import com.example.padavancontrol.ui.viewmodels.LoginViewModel
 import com.example.padavancontrol.ui.viewmodels.SettingsViewModel
@@ -387,6 +388,7 @@ fun MainNavigationContent(
                 entry<FirewallUrlFilter> { AdvancedFirewallScreen("URLFilter", viewModel = advancedFirewallViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 entry<FirewallMacFilter> { AdvancedFirewallScreen("MACFilter", viewModel = advancedFirewallViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 entry<FirewallServicesFilter> { AdvancedFirewallScreen("ServicesFilter", viewModel = advancedFirewallViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
+                entry<FirewallDnsIpsetFilter> { AdvancedFirewallScreen("DnsIpsetFilter", viewModel = advancedFirewallViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 
                 // USB Application
                 entry<UsbCommon> { AdvancedUsbScreen("Common", viewModel = advancedUsbViewModel, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
@@ -397,11 +399,12 @@ fun MainNavigationContent(
                 
                 // Administration
                 entry<AdminSystem> { AdvancedAdminScreen("System", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
-                entry<AdminServices> { AdvancedAdminScreen("Services", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
+                entry<AdminServices> { AdvancedAdminScreen("Services", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, onNavigateToTtydWebShell = { backStack.add(TtydWebShell) }, modifier = Modifier) }
                 entry<AdminOpMode> { AdvancedAdminScreen("OpMode", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 entry<AdminFirmware> { AdvancedAdminScreen("Firmware", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 entry<AdminSettingsBackup> { AdvancedAdminScreen("Backup", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 entry<AdminConsole> { ShellConsoleScreen(viewModel = shellConsoleViewModel, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
+                entry<TtydWebShell> { TtydWebShellScreen(onNavigateBack = { backStack.removeLastOrNull() }, repository = repository, modifier = Modifier) }
                 entry<AdminButtonsLed> { AdvancedAdminScreen("ButtonsLed", viewModel = advancedAdminViewModel, repository = repository, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 
                 // Customization
