@@ -89,4 +89,30 @@ class LoginViewModelTest {
         viewModel.testManualIp("")
         assertEquals("IP Address is required", viewModel.uiState.value.errorMessage)
     }
+
+    @Test
+    fun testLogin_withInvalidIp_setsError() {
+        val viewModel = LoginViewModel(repository, credentialStore)
+        viewModel.updateIpAddress("invalid-ip-string")
+        viewModel.login()
+        assertEquals("Invalid IP Address or Hostname format", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun testLogin_withValidHostname_doesNotSetFormatError() = runTest(testDispatcher) {
+        val viewModel = LoginViewModel(repository, credentialStore)
+        viewModel.updateIpAddress("router.asus.com")
+        viewModel.updateUsername("admin")
+        viewModel.login()
+        assertNotEquals("Invalid IP Address or Hostname format", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun testLogin_withValidIpV4_doesNotSetFormatError() = runTest(testDispatcher) {
+        val viewModel = LoginViewModel(repository, credentialStore)
+        viewModel.updateIpAddress("192.168.1.1:8080")
+        viewModel.updateUsername("admin")
+        viewModel.login()
+        assertNotEquals("Invalid IP Address or Hostname format", viewModel.uiState.value.errorMessage)
+    }
 }

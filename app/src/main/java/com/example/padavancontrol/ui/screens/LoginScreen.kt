@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -118,14 +120,14 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "PADAVAN CONTROL",
+                text = t("PADAVAN CONTROL"),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
 
             Text(
-                text = "Secure Companion App for newifi D2",
+                text = t("Secure Companion App for newifi D2"),
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -155,14 +157,14 @@ fun LoginScreen(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "Wifi Scanning",
+                                    text = t("Wifi Scanning"),
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = uiState.scanStatusMessage ?: "Initializing router discovery...",
+                                    text = uiState.scanStatusMessage ?: t("Initializing router discovery..."),
                                     fontSize = 13.sp,
                                     color = ArcherTeal,
                                     fontWeight = FontWeight.Medium
@@ -172,7 +174,7 @@ fun LoginScreen(
                                 if (uiState.discoveredRouters.isNotEmpty()) {
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Text(
-                                        text = "Tap a router to connect:",
+                                        text = t("Tap a router to connect:"),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -199,7 +201,7 @@ fun LoginScreen(
                                                 Spacer(modifier = Modifier.width(12.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text(
-                                                        text = "Padavan Router",
+                                                        text = t("Padavan Router"),
                                                         fontSize = 14.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = MaterialTheme.colorScheme.onSurface
@@ -213,7 +215,7 @@ fun LoginScreen(
                                                 }
                                                 Icon(
                                                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                                    contentDescription = "Select",
+                                                    contentDescription = t("Select"),
                                                     tint = ArcherTeal
                                                 )
                                             }
@@ -234,14 +236,14 @@ fun LoginScreen(
 
                                 Spacer(modifier = Modifier.height(24.dp))
                                 TextButton(onClick = { viewModel.updateStep(LoginStep.MANUAL_IP) }) {
-                                    Text("Set IP Manually", color = ArcherTeal, fontWeight = FontWeight.Bold)
+                                    Text(t("Set IP Manually"), color = ArcherTeal, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
                         LoginStep.MANUAL_IP -> {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    text = "Router IP Address",
+                                    text = t("Router IP Address"),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -272,7 +274,7 @@ fun LoginScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     TextButton(onClick = { viewModel.updateStep(LoginStep.SCANNING) }) {
-                                        Text("Scan Network", color = ArcherTeal)
+                                        Text(t("Scan Network"), color = ArcherTeal)
                                     }
                                     Spacer(modifier = Modifier.weight(1f))
                                     Button(
@@ -287,7 +289,7 @@ fun LoginScreen(
                                                 modifier = Modifier.size(18.dp)
                                             )
                                         } else {
-                                            Text("NEXT", color = Color.White, fontWeight = FontWeight.Bold)
+                                            Text(t("NEXT"), color = Color.White, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -296,7 +298,7 @@ fun LoginScreen(
                         LoginStep.CREDENTIALS -> {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    text = "Username",
+                                    text = t("Username"),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -319,7 +321,7 @@ fun LoginScreen(
                                 Spacer(modifier = Modifier.height(16.dp))
 
                                 Text(
-                                    text = "Password",
+                                    text = t("Password"),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -340,7 +342,7 @@ fun LoginScreen(
                                     },
                                     trailingIcon = {
                                         TextButton(onClick = { viewModel.togglePasswordVisibility() }) {
-                                            Text(if (uiState.passwordVisible) "HIDE" else "SHOW", color = ArcherTeal)
+                                            Text(if (uiState.passwordVisible) t("HIDE") else t("SHOW"), color = ArcherTeal)
                                         }
                                     }
                                 )
@@ -371,7 +373,7 @@ fun LoginScreen(
                                         )
                                     } else {
                                         Text(
-                                            text = "CONNECT",
+                                            text = t("CONNECT"),
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White

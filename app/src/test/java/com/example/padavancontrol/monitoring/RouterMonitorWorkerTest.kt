@@ -47,6 +47,7 @@ class RouterMonitorWorkerTest {
             whenever(mockStore.isNotifyNewDevice()).thenReturn(flowOf(false))
             whenever(mockStore.getLastKnownWanIp()).thenReturn(flowOf(null))
             whenever(mockStore.getLastKnownDeviceMacs()).thenReturn(flowOf(emptySet()))
+            whenever(mockStore.getLastKnownOnline()).thenReturn(flowOf(null))
         }.use {
             val systemStatus = SystemStatus(
                 cpuUsage = 10,

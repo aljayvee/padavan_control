@@ -9,6 +9,8 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import java.security.cert.X509Certificate
+import okhttp3.ConnectionSpec
+import okhttp3.TlsVersion
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -47,11 +49,13 @@ object RetrofitClient {
     @Volatile
     private var apiServiceInstance: PadavanApiService? = null
 
+    @Volatile
+    private var activeClient: OkHttpClient? = null
+
     /**
      * Idempotent initialization. Only rebuilds the HTTP stack when the
      * resolved base URL differs from the one already in use.
      */
-    @Synchronized
     fun initialize(
         ipAddress: String,
         usernameProvider: () -> String,
@@ -59,18 +63,26 @@ object RetrofitClient {
     ) {
         val formattedIp = formatIp(ipAddress)
 
-        // Skip rebuild when the base URL hasn't changed
+        // Lock-free fast path for already initialized state
         if (formattedIp == currentIp && apiServiceInstance != null) {
-            // Still update credential providers (they're cheap lambdas)
             this.usernameProvider = usernameProvider
             this.passwordProvider = passwordProvider
             return
         }
 
-        this.currentIp = formattedIp
-        this.usernameProvider = usernameProvider
-        this.passwordProvider = passwordProvider
-        rebuildClient()
+        synchronized(this) {
+            // Double-check under lock
+            if (formattedIp == currentIp && apiServiceInstance != null) {
+                this.usernameProvider = usernameProvider
+                this.passwordProvider = passwordProvider
+                return
+            }
+
+            this.currentIp = formattedIp
+            this.usernameProvider = usernameProvider
+            this.passwordProvider = passwordProvider
+            rebuildClient()
+        }
     }
 
     /**
@@ -97,12 +109,63 @@ object RetrofitClient {
     /** Returns true if a valid API service has been built. */
     fun isInitialized(): Boolean = apiServiceInstance != null
 
-    private fun formatIp(ipAddress: String): String {
-        return if (ipAddress.startsWith("http://") || ipAddress.startsWith("https://")) {
-            if (ipAddress.endsWith("/")) ipAddress else "$ipAddress/"
-        } else {
-            "http://$ipAddress/"
+    internal fun formatIp(ipAddress: String): String {
+        val trimmed = ipAddress.trim()
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return if (trimmed.endsWith("/")) trimmed else "$trimmed/"
         }
+        val isHttpsPort = trimmed.endsWith(":443") || trimmed.contains(":443/") ||
+                          trimmed.endsWith(":8443") || trimmed.contains(":8443/")
+        val scheme = if (isHttpsPort) "https://" else "http://"
+        return if (trimmed.endsWith("/")) "$scheme$trimmed" else "$scheme$trimmed/"
+    }
+
+    private val allowedCipherSuites = listOf(
+        // DH+AESGCM
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
+
+        // DH+AES256
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_DHE_RSA_WITH_AES_256_CBC_SHA256",
+        "TLS_DHE_RSA_WITH_AES_256_CBC_SHA",
+
+        // DH+AES
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_DHE_RSA_WITH_AES_128_CBC_SHA256",
+        "TLS_DHE_RSA_WITH_AES_128_CBC_SHA",
+
+        // DH+3DES
+        "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA",
+        "TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA",
+
+        // RSA+AES
+        "TLS_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_RSA_WITH_AES_128_CBC_SHA256",
+        "TLS_RSA_WITH_AES_256_CBC_SHA256",
+        "TLS_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_RSA_WITH_AES_256_CBC_SHA",
+
+        // RSA+3DES
+        "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
+    )
+
+    val customConnectionSpec: ConnectionSpec by lazy {
+        ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
+            .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_3)
+            .cipherSuites(*allowedCipherSuites.toTypedArray())
+            .build()
     }
 
     private fun rebuildClient() {
@@ -112,7 +175,14 @@ object RetrofitClient {
 
         val authInterceptor = BasicAuthInterceptor(
             usernameProvider = { this.usernameProvider() },
-            passwordProvider = { this.passwordProvider() }
+            passwordProvider = { this.passwordProvider() },
+            targetHostProvider = {
+                try {
+                    java.net.URI(currentIp ?: "").host ?: ""
+                } catch (e: Exception) {
+                    ""
+                }
+            }
         )
 
         val timeoutInterceptor = okhttp3.Interceptor { chain ->
@@ -127,32 +197,53 @@ object RetrofitClient {
             }
         }
 
+        val authenticator = BasicAuthenticator(
+            usernameProvider = { this.usernameProvider() },
+            passwordProvider = { this.passwordProvider() }
+        )
+
         val clientBuilder = OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
+            .authenticator(authenticator)
             .addInterceptor(timeoutInterceptor)
             .addInterceptor(logging)
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(5, TimeUnit.SECONDS)
             .writeTimeout(5, TimeUnit.SECONDS)
+            .connectionSpecs(listOf(customConnectionSpec, ConnectionSpec.CLEARTEXT))
 
-        try {
-            val trustAllCerts = arrayOf<TrustManager>(
-                object : X509TrustManager {
-                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-                }
-            )
+        val isHttps = currentIp?.startsWith("https://") == true
+        if (isHttps) {
+            try {
+                val trustAllCerts = arrayOf<TrustManager>(
+                    object : X509TrustManager {
+                        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                        override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                    }
+                )
 
-            val sslContext = SSLContext.getInstance("SSL")
-            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-            clientBuilder.sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-            clientBuilder.hostnameVerifier { _, _ -> true }
-        } catch (e: Exception) {
-            e.printStackTrace()
+                val sslContext = SSLContext.getInstance("TLS")
+                sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+                
+                clientBuilder.sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+                clientBuilder.hostnameVerifier { _, _ -> true }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
         val client = clientBuilder.build()
+
+        activeClient?.let { oldClient ->
+            try {
+                oldClient.dispatcher.executorService.shutdown()
+                oldClient.connectionPool.evictAll()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        activeClient = client
 
         val retrofit = Retrofit.Builder()
             .baseUrl(currentIp!!)

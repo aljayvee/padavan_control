@@ -43,18 +43,18 @@ class LogViewerViewModelTest {
 
     @Test
     fun testInitialStateAndLogsFetch() = runTest(testDispatcher) {
-        val viewModel = LogViewerViewModel(repository)
+        val viewModel = LogViewerViewModel(repository, testDispatcher)
 
         testDispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
-        assertTrue(state.rawLogs.contains("dnsmasq[1234]"))
+        assertTrue(state.filteredLogLines.any { it.contains("dnsmasq[1234]") })
     }
 
     @Test
     fun testUpdateFilterQuery() = runTest(testDispatcher) {
-        val viewModel = LogViewerViewModel(repository)
+        val viewModel = LogViewerViewModel(repository, testDispatcher)
         viewModel.updateFilterQuery("google")
         assertEquals("google", viewModel.uiState.value.filterQuery)
     }
@@ -63,7 +63,7 @@ class LogViewerViewModelTest {
     fun testClearLogs() = runTest(testDispatcher) {
         doReturn(true).`when`(repository).clearSystemLogs()
 
-        val viewModel = LogViewerViewModel(repository)
+        val viewModel = LogViewerViewModel(repository, testDispatcher)
         testDispatcher.scheduler.advanceUntilIdle()
 
         val events = mutableListOf<LogViewerEvent>()
@@ -74,7 +74,7 @@ class LogViewerViewModelTest {
         viewModel.clearLogs()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Syslog is currently empty.", viewModel.uiState.value.rawLogs)
+        assertEquals("Syslog is currently empty.", viewModel.uiState.value.filteredLogLines.firstOrNull())
         assertEquals(1, events.size)
         assertEquals("System syslog cleared", (events[0] as LogViewerEvent.ShowToast).message)
 

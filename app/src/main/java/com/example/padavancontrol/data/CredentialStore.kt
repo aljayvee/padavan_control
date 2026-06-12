@@ -17,19 +17,24 @@ class CredentialStore(context: Context) {
         createEncryptedSharedPreferences(context, masterKey)
     } catch (e: Exception) {
         e.printStackTrace()
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                context.deleteSharedPreferences("secure_padavan_prefs")
-            } else {
-                val sharedPrefsFile = java.io.File(context.filesDir.parent, "shared_prefs/secure_padavan_prefs.xml")
-                if (sharedPrefsFile.exists()) {
-                    sharedPrefsFile.delete()
+        if (e is java.security.GeneralSecurityException) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    context.deleteSharedPreferences("secure_padavan_prefs")
+                } else {
+                    val sharedPrefsFile = java.io.File(context.filesDir.parent, "shared_prefs/secure_padavan_prefs.xml")
+                    if (sharedPrefsFile.exists()) {
+                        sharedPrefsFile.delete()
+                    }
                 }
+            } catch (delEx: Exception) {
+                delEx.printStackTrace()
             }
-        } catch (delEx: Exception) {
-            delEx.printStackTrace()
+            createEncryptedSharedPreferences(context, masterKey)
+        } else {
+            // Re-throw if it's a transient I/O exception
+            throw e
         }
-        createEncryptedSharedPreferences(context, masterKey)
     }
 
     private fun createEncryptedSharedPreferences(context: Context, key: MasterKey): SharedPreferences {

@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -95,8 +97,8 @@ fun AdvancedScriptScreen(
 
     val title = remember(section) {
         when (section) {
-            "Scripts" -> "Custom Startup Bash Scripts"
-            "Detector" -> "Internet Watchdog Detector"
+            "Scripts" -> t("Custom Startup Bash Scripts")
+            "Detector" -> t("Internet Watchdog Detector")
             else -> "Customization"
         }
     }
@@ -110,7 +112,7 @@ fun AdvancedScriptScreen(
     }
 
     // Active script dialog editor states
-    var editingScriptKey by remember { mutableStateOf<String?>(null) } // "Init", "Start", "WanUp", "WanDown", "Shutdown", "Firewall", "EzButton"
+    var editingScriptKey by remember { mutableStateOf<String?>(null) } // "Init", "Start", "WanUp", "WanDown", t("Shutdown"), "Firewall", "EzButton"
     var editingScriptContent by remember { mutableStateOf("") }
 
     // Watchdog drop down states
@@ -162,7 +164,7 @@ fun AdvancedScriptScreen(
 
     fun saveConfig() {
         if (!validateInputs()) {
-            Toast.makeText(context, "Please fix verification errors.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, t("Please fix verification errors."), Toast.LENGTH_SHORT).show()
             return
         }
         viewModel.saveConfig(pagePath)
@@ -176,7 +178,7 @@ fun AdvancedScriptScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -184,7 +186,7 @@ fun AdvancedScriptScreen(
                 actions = {
                     if (!uiState.isLoading && !uiState.isSaving) {
                         IconButton(onClick = { viewModel.loadConfig(pagePath) }) {
-                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Reload", tint = ArcherTeal)
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = t("Reload"), tint = ArcherTeal)
                         }
                     }
                 },
@@ -290,7 +292,7 @@ fun AdvancedScriptScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "System Customization Core",
+                                    text = t("System Customization Core"),
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp,
                                     color = Color.Black
@@ -298,7 +300,7 @@ fun AdvancedScriptScreen(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Adjust custom startup shells or ping watchdog properties. These bash script instructions run automatically at specific hardware cycles.",
+                                text = t("Adjust custom startup shells or ping watchdog properties. These bash script instructions run automatically at specific hardware cycles."),
                                 color = Color.Gray,
                                 fontSize = 12.sp
                             )
@@ -308,15 +310,15 @@ fun AdvancedScriptScreen(
                     // Render sections
                     when (section) {
                         "Scripts" -> {
-                            Text("Custom User Scripts", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
+                            Text(t("Custom User Scripts"), fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
 
                             val scriptItems = listOf(
-                                Triple("Init", "Run Before Router Initialized", "scripts.init_script.sh"),
-                                Triple("Start", "Run After Router Started", "scripts.start_script.sh"),
-                                Triple("Shutdown", "Run Before Router Shutdown", "scripts.shutdown_script.sh"),
-                                Triple("WanUpDown", "Run After WAN Up/Down Events", "scripts.post_wan_script.sh / post_wandn_script.sh"),
-                                Triple("Firewall", "Run After Firewall Rules Restarted", "scripts.post_iptables_script.sh"),
-                                Triple("EzButton", "Run On Press WPS/FN Ez-Buttons", "scripts.ez_buttons_script.sh")
+                                Triple("Init", t("Run Before Router Initialized"), "scripts.init_script.sh"),
+                                Triple("Start", t("Run After Router Started"), "scripts.start_script.sh"),
+                                Triple(t("Shutdown"), t("Run Before Router Shutdown"), "scripts.shutdown_script.sh"),
+                                Triple("WanUpDown", t("Run After WAN Up/Down Events"), "scripts.post_wan_script.sh / post_wandn_script.sh"),
+                                Triple("Firewall", t("Run After Firewall Rules Restarted"), "scripts.post_iptables_script.sh"),
+                                Triple("EzButton", t("Run On Press WPS/FN Ez-Buttons"), "scripts.ez_buttons_script.sh")
                             )
 
                             scriptItems.forEach { (key, label, filename) ->
@@ -333,7 +335,7 @@ fun AdvancedScriptScreen(
                                                 editingScriptContent = when (key) {
                                                     "Init" -> uiState.config.scriptInit
                                                     "Start" -> uiState.config.scriptStart
-                                                    "Shutdown" -> uiState.config.scriptShutdown
+                                                    t("Shutdown") -> uiState.config.scriptShutdown
                                                     "Firewall" -> uiState.config.scriptIpRules
                                                     "EzButton" -> uiState.config.scriptEzButton
                                                     else -> ""
@@ -384,9 +386,9 @@ fun AdvancedScriptScreen(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Internet Watchdog Setup", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
+                                    Text(t("Internet Watchdog Setup"), fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
 
-                                    Text("Internet Detector Poll Mode", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
+                                    Text(t("Internet Detector Poll Mode"), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
                                     Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                                         Row(
                                             modifier = Modifier
@@ -398,23 +400,23 @@ fun AdvancedScriptScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val desc = when (uiState.config.pingPollMode) {
-                                                "0" -> "Disabled"
+                                                "0" -> t("Disabled")
                                                 "1" -> "Ping (ICMP Echo)"
                                                 "2" -> "TCP Connection check"
-                                                else -> "Disabled"
+                                                else -> t("Disabled")
                                             }
                                             Text(desc, color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
                                         DropdownMenu(expanded = pollModeExpanded, onDismissRequest = { pollModeExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(pingPollMode = "0", pingEnabled = false)); pollModeExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Disabled")) }, onClick = { viewModel.updateConfig(uiState.config.copy(pingPollMode = "0", pingEnabled = false)); pollModeExpanded = false })
                                             DropdownMenuItem(text = { Text("Ping (ICMP Echo)") }, onClick = { viewModel.updateConfig(uiState.config.copy(pingPollMode = "1", pingEnabled = true)); pollModeExpanded = false })
                                             DropdownMenuItem(text = { Text("TCP Connection check") }, onClick = { viewModel.updateConfig(uiState.config.copy(pingPollMode = "2", pingEnabled = true)); pollModeExpanded = false })
                                         }
                                     }
 
                                     if (uiState.config.pingPollMode != "0") {
-                                        Text("Action on Network Failure", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
+                                        Text(t("Action on Network Failure"), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
                                         Box(modifier = Modifier.fillMaxWidth()) {
                                             Row(
                                                 modifier = Modifier
@@ -426,18 +428,18 @@ fun AdvancedScriptScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 val desc = when (uiState.config.pingAction) {
-                                                    "0" -> "Restart WAN connection link"
-                                                    "1" -> "Reboot physical router"
-                                                    "2" -> "Execute custom failure script"
+                                                    "0" -> t("Restart WAN connection link")
+                                                    "1" -> t("Reboot physical router")
+                                                    "2" -> t("Execute custom failure script")
                                                     else -> "Restart WAN (0)"
                                                 }
                                                 Text(desc, color = Color.Black, fontSize = 14.sp)
                                                 Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                             }
                                             DropdownMenu(expanded = actionExpanded, onDismissRequest = { actionExpanded = false }) {
-                                                DropdownMenuItem(text = { Text("Restart WAN connection link") }, onClick = { viewModel.updateConfig(uiState.config.copy(pingAction = "0")); actionExpanded = false })
-                                                DropdownMenuItem(text = { Text("Reboot Router") }, onClick = { viewModel.updateConfig(uiState.config.copy(pingAction = "1")); actionExpanded = false })
-                                                DropdownMenuItem(text = { Text("Execute custom failure script") }, onClick = { viewModel.updateConfig(uiState.config.copy(pingAction = "2")); actionExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("Restart WAN connection link")) }, onClick = { viewModel.updateConfig(uiState.config.copy(pingAction = "0")); actionExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("Reboot Router")) }, onClick = { viewModel.updateConfig(uiState.config.copy(pingAction = "1")); actionExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("Execute custom failure script")) }, onClick = { viewModel.updateConfig(uiState.config.copy(pingAction = "2")); actionExpanded = false })
                                             }
                                         }
                                     }
@@ -455,13 +457,13 @@ fun AdvancedScriptScreen(
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
-                                        Text("List of Internet Hosts for Check Connection", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
-                                        Text("Provide target IP addresses or domain names. For TCP Connection mode, add port numbers (e.g. 1.1.1.1:53).", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.padding(bottom = 16.dp))
+                                        Text(t("List of Internet Hosts for Check Connection"), fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
+                                        Text(t("Provide target IP addresses or domain names. For TCP Connection mode, add port numbers (e.g. 1.1.1.1:53)."), color = Color.Gray, fontSize = 11.sp, modifier = Modifier.padding(bottom = 16.dp))
 
                                         OutlinedTextField(
                                             value = uiState.config.pingHost1,
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(pingHost1 = it)) },
-                                            label = { Text("Remote Server Address and Port 1") },
+                                            label = { Text(t("Remote Server Address and Port 1")) },
                                             placeholder = { Text("8.8.8.8") },
                                             isError = host1Error != null,
                                             supportingText = host1Error?.let { { Text(it) } },
@@ -471,7 +473,7 @@ fun AdvancedScriptScreen(
                                         OutlinedTextField(
                                             value = uiState.config.pingHost2,
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(pingHost2 = it)) },
-                                            label = { Text("Remote Server Address and Port 2") },
+                                            label = { Text(t("Remote Server Address and Port 2")) },
                                             placeholder = { Text("114.114.114.114") },
                                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                                         )
@@ -479,28 +481,28 @@ fun AdvancedScriptScreen(
                                         OutlinedTextField(
                                             value = uiState.config.pingHost3,
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(pingHost3 = it)) },
-                                            label = { Text("Remote Server Address and Port 3") },
+                                            label = { Text(t("Remote Server Address and Port 3")) },
                                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                                         )
 
                                         OutlinedTextField(
                                             value = uiState.config.pingHost4,
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(pingHost4 = it)) },
-                                            label = { Text("Remote Server Address and Port 4") },
+                                            label = { Text(t("Remote Server Address and Port 4")) },
                                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                                         )
 
                                         OutlinedTextField(
                                             value = uiState.config.pingHost5,
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(pingHost5 = it)) },
-                                            label = { Text("Remote Server Address and Port 5") },
+                                            label = { Text(t("Remote Server Address and Port 5")) },
                                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                                         )
 
                                         OutlinedTextField(
                                             value = uiState.config.pingHost6,
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(pingHost6 = it)) },
-                                            label = { Text("Remote Server Address and Port 6") },
+                                            label = { Text(t("Remote Server Address and Port 6")) },
                                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                                         )
                                     }
@@ -516,12 +518,12 @@ fun AdvancedScriptScreen(
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
-                                        Text("Internet Hosts Polling Settings", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
+                                        Text(t("Internet Hosts Polling Settings"), fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
 
                                         OutlinedTextField(
                                             value = uiState.config.pingIntervalSuccess.toString(),
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(pingIntervalSuccess = it.toIntOrNull() ?: 30, pingPeriod = it.toIntOrNull() ?: 30)) },
-                                            label = { Text("Poll Interval After Connection Success (s)") },
+                                            label = { Text(t("Poll Interval After Connection Success (s)")) },
                                             isError = periodError != null,
                                             supportingText = periodError?.let { { Text(it) } },
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -531,7 +533,7 @@ fun AdvancedScriptScreen(
                                         OutlinedTextField(
                                             value = uiState.config.pingIntervalFail.toString(),
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(pingIntervalFail = it.toIntOrNull() ?: 10)) },
-                                            label = { Text("Poll Interval After Connection Failed (s)") },
+                                            label = { Text(t("Poll Interval After Connection Failed (s)")) },
                                             isError = failPeriodError != null,
                                             supportingText = failPeriodError?.let { { Text(it) } },
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -541,7 +543,7 @@ fun AdvancedScriptScreen(
                                         OutlinedTextField(
                                             value = uiState.config.pingTimeout.toString(),
                                             onValueChange = { viewModel.updateConfig(uiState.config.copy(pingTimeout = it.toIntOrNull() ?: 5)) },
-                                            label = { Text("TCP Connection Timeout (s)") },
+                                            label = { Text(t("TCP Connection Timeout (s)")) },
                                             isError = timeoutError != null,
                                             supportingText = timeoutError?.let { { Text(it) } },
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -575,7 +577,7 @@ fun AdvancedScriptScreen(
                                     val titleText = when (editingScriptKey) {
                                         "Init" -> "Before Router Initialized"
                                         "Start" -> "After Router Started"
-                                        "Shutdown" -> "Before Router Shutdown"
+                                        t("Shutdown") -> "Before Router Shutdown"
                                         "WanUp" -> "After WAN Up Event"
                                         "WanDown" -> "After WAN Down Event"
                                         "Firewall" -> "After Firewall Rules Restarted"
@@ -586,7 +588,7 @@ fun AdvancedScriptScreen(
                                     val descText = when (editingScriptKey) {
                                         "Init" -> "Executes before any network modules or services are started."
                                         "Start" -> "Executes immediately after kernel boot finish."
-                                        "Shutdown" -> "Executes before system restarts or powers down."
+                                        t("Shutdown") -> "Executes before system restarts or powers down."
                                         "WanUp" -> "Executes once WAN dial up completes successfully."
                                         "WanDown" -> "Executes once WAN dials down or connection fails."
                                         "Firewall" -> "Executes after iptables rules are flushed/reapplied."
@@ -666,7 +668,7 @@ fun AdvancedScriptScreen(
                                                 val updated = when (editingScriptKey) {
                                                     "Init" -> uiState.config.copy(scriptInit = editingScriptContent)
                                                     "Start" -> uiState.config.copy(scriptStart = editingScriptContent, scriptStartup = editingScriptContent)
-                                                    "Shutdown" -> uiState.config.copy(scriptShutdown = editingScriptContent)
+                                                    t("Shutdown") -> uiState.config.copy(scriptShutdown = editingScriptContent)
                                                     "WanUp" -> uiState.config.copy(scriptWanUp = editingScriptContent)
                                                     "WanDown" -> uiState.config.copy(scriptWanDown = editingScriptContent)
                                                     "Firewall" -> uiState.config.copy(scriptIpRules = editingScriptContent)
@@ -700,9 +702,9 @@ fun AdvancedScriptScreen(
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                         } else {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(imageVector = Icons.Default.Check, contentDescription = "Save")
+                                Icon(imageVector = Icons.Default.Check, contentDescription = t("Save"))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Apply Settings", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text(t("Apply Settings"), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

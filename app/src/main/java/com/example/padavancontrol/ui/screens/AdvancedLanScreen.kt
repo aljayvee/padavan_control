@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -255,7 +257,7 @@ fun AdvancedLanScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -263,7 +265,7 @@ fun AdvancedLanScreen(
                 actions = {
                     if (!uiState.isLoading && !uiState.isSaving) {
                         IconButton(onClick = { viewModel.loadConfig(pagePath) }) {
-                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Reload", tint = ArcherTeal)
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = t("Reload"), tint = ArcherTeal)
                         }
                     }
                 },
@@ -556,12 +558,12 @@ fun AdvancedLanScreen(
                                         // Verbose dropdown
                                         var verboseExpanded by remember { mutableStateOf(false) }
                                         val verboseOptions = listOf(
-                                            0 to "Disabled",
+                                            0 to t("Disabled"),
                                             1 to "DHCPv4",
                                             2 to "DHCPv6",
                                             3 to "DHCPv4 + DHCPv6"
                                         )
-                                        val selectedVerboseText = verboseOptions.find { it.first == uiState.config.dhcpVerbose }?.second ?: "Disabled"
+                                        val selectedVerboseText = verboseOptions.find { it.first == uiState.config.dhcpVerbose }?.second ?: t("Disabled")
 
                                         Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                                             OutlinedTextField(
@@ -676,7 +678,7 @@ fun AdvancedLanScreen(
                                         OutlinedTextField(
                                             value = addLeaseMac,
                                             onValueChange = { addLeaseMac = it },
-                                            label = { Text("MAC Address") },
+                                            label = { Text(t("MAC Address")) },
                                             isError = addLeaseMacError != null,
                                             supportingText = addLeaseMacError?.let { { Text(it) } },
                                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
@@ -694,7 +696,7 @@ fun AdvancedLanScreen(
                                         OutlinedTextField(
                                             value = addLeaseName,
                                             onValueChange = { addLeaseName = it },
-                                            label = { Text("Device Name") },
+                                            label = { Text(t("Device Name")) },
                                             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                                         )
 
@@ -1315,7 +1317,7 @@ fun AdvancedLanScreen(
                                         val flowOptions = listOf(
                                             0 to "TX/RX",
                                             1 to "TX (Asymmetric Pause)",
-                                            2 to "Disabled"
+                                            2 to t("Disabled")
                                         )
                                         val selectedFlowText = flowOptions.find { it.first == portConfig.flowControl }?.second ?: "TX/RX"
 
@@ -1416,7 +1418,7 @@ fun AdvancedLanScreen(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Wake-on-LAN client", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
+                                    Text(t("Wake-on-LAN client"), fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 16.dp))
                                     
                                     OutlinedTextField(
                                         value = wolTargetMac,
@@ -1508,9 +1510,9 @@ fun AdvancedLanScreen(
                                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                             } else {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(imageVector = Icons.Default.Check, contentDescription = "Save")
+                                    Icon(imageVector = Icons.Default.Check, contentDescription = t("Save"))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Apply Settings", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text(t("Apply Settings"), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }

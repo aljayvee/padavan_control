@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,10 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -61,8 +65,17 @@ fun LogViewerScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val logsScrollState = rememberScrollState()
+    val lazyListState = rememberLazyListState()
 
+    // Automatically scroll to the end of the logs when log line count changes
+    val filteredLinesCount = uiState.filteredLogLines.size
+    LaunchedEffect(filteredLinesCount) {
+        if (filteredLinesCount > 0) {
+            lazyListState.animateScrollToItem(filteredLinesCount - 1)
+        }
+    }
+
+    // Toast Effect
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
@@ -73,21 +86,15 @@ fun LogViewerScreen(
         }
     }
 
-    // Automatically scroll to the end of the logs when fetched or filtered
-    LaunchedEffect(uiState.rawLogs, uiState.filterQuery) {
-        delay(100) // Small delay for layout to settle
-        logsScrollState.animateScrollTo(logsScrollState.maxValue)
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("System logs", fontWeight = FontWeight.Bold) },
+                title = { Text(t("System logs"), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -109,7 +116,7 @@ fun LogViewerScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.DeleteSweep,
-                            contentDescription = "Clear Logs",
+                            contentDescription = t("Clear Logs"),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }
@@ -130,7 +137,7 @@ fun LogViewerScreen(
             OutlinedTextField(
                 value = uiState.filterQuery,
                 onValueChange = { viewModel.updateFilterQuery(it) },
-                label = { Text("Search / filter logs") },
+                label = { Text(t("Search / filter logs")) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -148,34 +155,30 @@ fun LogViewerScreen(
                     .background(Color(0xFF1E293B)) // Tailwind Slate-800 dark slate
                     .padding(12.dp)
             ) {
-                if (uiState.isLoading && uiState.rawLogs.startsWith("Fetching")) {
+                if (uiState.isLoading && uiState.rawLogsLength == 0) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = ArcherTeal)
                     }
                 } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(logsScrollState)
+                    LazyColumn(
+                        state = lazyListState,
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        // Split logs by line and filter based on search query
-                        val lines = uiState.rawLogs.split("\n")
-                        val filteredLines = if (uiState.filterQuery.trim().isEmpty()) {
-                            lines
+                        if (uiState.filteredLogLines.isEmpty()) {
+                            item {
+                                Text(
+                                    text = t("No log entries matches your search query."),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
                         } else {
-                            lines.filter { it.contains(uiState.filterQuery, ignoreCase = true) }
-                        }
-
-                        if (filteredLines.isEmpty()) {
-                            Text(
-                                text = "No log entries matches your search query.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        } else {
-                            // Highlight matches in each line
-                            filteredLines.forEach { line ->
+                            items(
+                                count = uiState.filteredLogLines.size,
+                                key = { index -> index }
+                            ) { index ->
+                                val line = uiState.filteredLogLines[index]
                                 Text(
                                     text = buildHighlightableString(line, uiState.filterQuery),
                                     color = Color(0xFFF1F5F9), // Very light gray
@@ -213,9 +216,4 @@ fun buildHighlightableString(text: String, query: String) = buildAnnotatedString
             }
         }
     }
-}
-
-// Small mock delay helper
-private suspend fun delay(ms: Long) {
-    kotlinx.coroutines.delay(ms)
 }

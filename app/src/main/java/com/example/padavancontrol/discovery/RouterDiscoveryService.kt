@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import okhttp3.ConnectionSpec
+import com.example.padavancontrol.network.RetrofitClient
 
 object RouterDiscoveryService {
 
@@ -36,16 +38,18 @@ object RouterDiscoveryService {
             
             OkHttpClient.Builder()
                 .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-                .hostnameVerifier { _, _ -> true }
+                .hostnameVerifier { hostname, _ -> isPrivateIp(hostname) }
                 .connectTimeout(2, TimeUnit.SECONDS)
                 .readTimeout(2, TimeUnit.SECONDS)
                 .followRedirects(true)
                 .followSslRedirects(true)
+                .connectionSpecs(listOf(RetrofitClient.customConnectionSpec, ConnectionSpec.CLEARTEXT))
                 .build()
         } catch (e: Exception) {
             OkHttpClient.Builder()
                 .connectTimeout(2, TimeUnit.SECONDS)
                 .readTimeout(2, TimeUnit.SECONDS)
+                .connectionSpecs(listOf(RetrofitClient.customConnectionSpec, ConnectionSpec.CLEARTEXT))
                 .build()
         }
     }
@@ -55,6 +59,7 @@ object RouterDiscoveryService {
         OkHttpClient.Builder()
             .connectTimeout(2, TimeUnit.SECONDS)
             .readTimeout(2, TimeUnit.SECONDS)
+            .connectionSpecs(listOf(RetrofitClient.customConnectionSpec, ConnectionSpec.CLEARTEXT))
             .build()
     }
 
@@ -121,7 +126,10 @@ object RouterDiscoveryService {
         val formattedUrl = if (ip.startsWith("http://") || ip.startsWith("https://")) {
             ip.removeSuffix("/") + "/index.asp"
         } else {
-            "http://$ip/index.asp"
+            val isHttpsPort = ip.endsWith(":443") || ip.contains(":443/") ||
+                              ip.endsWith(":8443") || ip.contains(":8443/")
+            val scheme = if (isHttpsPort) "https://" else "http://"
+            "$scheme$ip/index.asp"
         }
 
         val client = if (isPrivateIp(ip)) permissiveClient else standardClient

@@ -23,7 +23,8 @@ data class AdvancedFirewallUiState(
     val errorMessage: String? = null,
     val saveSuccess: Boolean = false,
     val loadProgress: Float = 0f,
-    val loadStatus: String = ""
+    val loadStatus: String = "",
+    val blockPublicDoh: Boolean = false
 )
 
 class AdvancedFirewallViewModel(
@@ -43,7 +44,13 @@ class AdvancedFirewallViewModel(
                 repository.getLanConfig(page).collect { result ->
                     result.onSuccess { lanConfig ->
                         val domains = parseDomainsFromDnsmasq(lanConfig.dnsmasqDnsmasqConf)
-                        _uiState.update { it.copy(blockedDomains = domains, loadProgress = 1.0f, loadStatus = "Domains loaded.", isLoading = false) }
+                        var blockDoh = false
+                        repository.getScriptConfig("Advanced_Scripts_Content.asp").collect { scriptResult ->
+                            scriptResult.onSuccess { scriptConfig ->
+                                blockDoh = scriptConfig.scriptIpRules.contains("# --- Padavan Control App DoH Block Start ---")
+                            }
+                        }
+                        _uiState.update { it.copy(blockedDomains = domains, blockPublicDoh = blockDoh, loadProgress = 1.0f, loadStatus = "Domains loaded.", isLoading = false) }
                     }
                     result.onFailure { exception ->
                         _uiState.update {
@@ -189,6 +196,12 @@ class AdvancedFirewallViewModel(
         saveDnsIpsetConfig(currentDomains, page)
     }
 
+    fun toggleBlockPublicDoh(enabled: Boolean, page: String) {
+        if (_uiState.value.blockPublicDoh == enabled) return
+        _uiState.update { it.copy(blockPublicDoh = enabled) }
+        saveDnsIpsetConfig(_uiState.value.blockedDomains, page)
+    }
+
     private fun saveDnsIpsetConfig(domains: List<String>, page: String) {
         _uiState.update { it.copy(isSaving = true, errorMessage = null, saveSuccess = false) }
         viewModelScope.launch {
@@ -225,7 +238,7 @@ class AdvancedFirewallViewModel(
                     return@launch
                 }
 
-                val updatedIpRules = updateScriptIpRules(currentScriptConfig!!.scriptIpRules)
+                val updatedIpRules = updateScriptIpRules(currentScriptConfig!!.scriptIpRules, _uiState.value.blockPublicDoh)
                 val updatedScriptConfig = currentScriptConfig!!.copy(scriptIpRules = updatedIpRules)
 
                 val saveScriptSuccess = repository.saveScriptConfig("Advanced_Scripts_Content.asp", updatedScriptConfig)
@@ -236,7 +249,7 @@ class AdvancedFirewallViewModel(
                 }
 
                 repository.commitFlash()
-                repository.executeCommand("restart_dhcpd; restart_firewall")
+                repository.executeCommand("restart_firewall; restart_dhcpd")
 
                 _uiState.update { it.copy(blockedDomains = domains, isSaving = false, saveSuccess = true) }
                 _toastMessage.emit("Settings applied successfully.")
@@ -264,9 +277,9 @@ class AdvancedFirewallViewModel(
                 break
             }
             if (inBlock) {
-                if (trimmed.startsWith("ipset=/") && trimmed.endsWith("/blocked_ips")) {
-                    val domain = trimmed.substringAfter("ipset=/").substringBefore("/blocked_ips").trim()
-                    if (domain.isNotEmpty()) {
+                if (trimmed.startsWith("address=/") && trimmed.endsWith("/0.0.0.0")) {
+                    val domain = trimmed.substringAfter("address=/").substringBefore("/0.0.0.0").trim()
+                    if (domain.isNotEmpty() && !domains.contains(domain)) {
                         domains.add(domain)
                     }
                 }
@@ -303,30 +316,84 @@ class AdvancedFirewallViewModel(
         }
         sb.append(startMarker).append("\n")
         for (domain in domains) {
-            sb.append("ipset=/").append(domain).append("/blocked_ips\n")
+            sb.append("address=/").append(domain).append("/0.0.0.0\n")
+            sb.append("address=/").append(domain).append("/::\n")
         }
+        // Force browsers to disable DNS-over-HTTPS by blocking the canary domain
+        sb.append("local=/use-application-dns.net/\n")
         sb.append(endMarker)
         return sb.toString()
     }
 
-    private fun updateScriptIpRules(rules: String): String {
+    private fun updateScriptIpRules(rules: String, blockDoh: Boolean): String {
         val startMarker = "# --- Padavan Control App IPSET Block Start ---"
         val endMarker = "# --- Padavan Control App IPSET Block End ---"
+        val dohStartMarker = "# --- Padavan Control App DoH Block Start ---"
+        val dohEndMarker = "# --- Padavan Control App DoH Block End ---"
 
-        if (rules.contains(startMarker)) {
-            return rules
+        val lines = rules.lines()
+        val outLines = mutableListOf<String>()
+        var inBlock = false
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed == startMarker || trimmed == dohStartMarker) {
+                inBlock = true
+                continue
+            }
+            if (trimmed == endMarker || trimmed == dohEndMarker) {
+                inBlock = false
+                continue
+            }
+            if (!inBlock) {
+                outLines.add(line)
+            }
         }
 
-        val setupBlock = """
-            
-            $startMarker
-            ipset create blocked_ips hash:ip 2>/dev/null
-            iptables -C FORWARD -m set --match-set blocked_ips dst -j REJECT --reject-with tcp-reset 2>/dev/null || \
-            iptables -I FORWARD -m set --match-set blocked_ips dst -j REJECT --reject-with tcp-reset
-            $endMarker
-            
-        """.trimIndent()
+        val baseRules = outLines.joinToString("\n").trimEnd()
 
-        return rules + "\n" + setupBlock
+        val dohBlock = if (blockDoh) {
+            """
+            
+            $dohStartMarker
+            # Drop DNS-over-TLS (port 853)
+            iptables -C FORWARD -p tcp --dport 853 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -p tcp --dport 853 -j DROP
+            iptables -C FORWARD -p udp --dport 853 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -p udp --dport 853 -j DROP
+            
+            # Drop DNS-over-HTTPS for Known Providers (port 443)
+            # Google
+            iptables -C FORWARD -d 8.8.8.8 -p tcp --dport 443 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -d 8.8.8.8 -p tcp --dport 443 -j DROP
+            iptables -C FORWARD -d 8.8.4.4 -p tcp --dport 443 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -d 8.8.4.4 -p tcp --dport 443 -j DROP
+            # Cloudflare
+            iptables -C FORWARD -d 1.1.1.1 -p tcp --dport 443 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -d 1.1.1.1 -p tcp --dport 443 -j DROP
+            iptables -C FORWARD -d 1.0.0.1 -p tcp --dport 443 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -d 1.0.0.1 -p tcp --dport 443 -j DROP
+            # Quad9
+            iptables -C FORWARD -d 9.9.9.9 -p tcp --dport 443 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -d 9.9.9.9 -p tcp --dport 443 -j DROP
+            iptables -C FORWARD -d 149.112.112.112 -p tcp --dport 443 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -d 149.112.112.112 -p tcp --dport 443 -j DROP
+            # AdGuard
+            iptables -C FORWARD -d 94.140.14.14 -p tcp --dport 443 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -d 94.140.14.14 -p tcp --dport 443 -j DROP
+            iptables -C FORWARD -d 94.140.15.15 -p tcp --dport 443 -j DROP 2>/dev/null || \
+            iptables -I FORWARD -d 94.140.15.15 -p tcp --dport 443 -j DROP
+            $dohEndMarker
+            
+            """.trimIndent()
+        } else {
+            ""
+        }
+
+        return if (blockDoh) {
+            "$baseRules\n$dohBlock\n"
+        } else {
+            if (baseRules.isEmpty()) "" else "$baseRules\n"
+        }
     }
 }

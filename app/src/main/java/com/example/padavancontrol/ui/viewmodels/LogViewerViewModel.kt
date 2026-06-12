@@ -12,7 +12,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class LogViewerUiState(
-    val rawLogs: String = "Fetching syslog messages from router...",
+    val filteredLogLines: List<String> = emptyList(),
+    val rawLogsLength: Int = 0,
     val filterQuery: String = "",
     val isLoading: Boolean = false
 )
@@ -22,7 +23,8 @@ sealed interface LogViewerEvent {
 }
 
 class LogViewerViewModel(
-    private val repository: PadavanRepository
+    private val repository: PadavanRepository,
+    private val defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LogViewerUiState())
@@ -31,12 +33,27 @@ class LogViewerViewModel(
     private val _events = Channel<LogViewerEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
+    private var allLogLines: List<String> = listOf("Fetching syslog messages from router...")
+
     init {
         fetchLogs()
     }
 
     fun updateFilterQuery(value: String) {
         _uiState.update { it.copy(filterQuery = value) }
+        applyFilter()
+    }
+
+    private fun applyFilter() {
+        val query = _uiState.value.filterQuery
+        viewModelScope.launch(defaultDispatcher) {
+            val filtered = if (query.trim().isEmpty()) {
+                allLogLines
+            } else {
+                allLogLines.filter { it.contains(query, ignoreCase = true) }
+            }
+            _uiState.update { it.copy(filteredLogLines = filtered) }
+        }
     }
 
     fun fetchLogs() {
@@ -44,9 +61,18 @@ class LogViewerViewModel(
         viewModelScope.launch {
             repository.getSystemLogs().collect { result ->
                 result.onSuccess { logs ->
-                    _uiState.update { it.copy(rawLogs = logs.ifEmpty { "Syslog is currently empty." }, isLoading = false) }
+                    val raw = logs.ifEmpty { "Syslog is currently empty." }
+                    viewModelScope.launch(defaultDispatcher) {
+                        allLogLines = raw.split("\n")
+                        _uiState.update { it.copy(rawLogsLength = raw.length, isLoading = false) }
+                        applyFilter()
+                    }
                 }.onFailure { err ->
-                    _uiState.update { it.copy(rawLogs = "Failed to fetch logs: ${err.message}", isLoading = false) }
+                    viewModelScope.launch(defaultDispatcher) {
+                        allLogLines = listOf("Failed to fetch logs: ${err.message}")
+                        _uiState.update { it.copy(isLoading = false) }
+                        applyFilter()
+                    }
                 }
             }
         }
@@ -58,7 +84,9 @@ class LogViewerViewModel(
             val success = repository.clearSystemLogs()
             if (success) {
                 _events.send(LogViewerEvent.ShowToast("System syslog cleared"))
-                _uiState.update { it.copy(rawLogs = "Syslog is currently empty.", isLoading = false) }
+                allLogLines = listOf("Syslog is currently empty.")
+                _uiState.update { it.copy(rawLogsLength = 0, isLoading = false) }
+                applyFilter()
             } else {
                 _events.send(LogViewerEvent.ShowToast("Failed to clear logs"))
                 _uiState.update { it.copy(isLoading = false) }

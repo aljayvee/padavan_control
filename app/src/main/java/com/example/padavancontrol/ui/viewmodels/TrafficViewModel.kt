@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+import kotlinx.coroutines.isActive
+
 val INTERFACE_MAPPING = mapOf(
     "WAN" to "Wired: WAN",
     "LAN" to "Wired: LAN",
@@ -54,7 +56,8 @@ data class TrafficUiState(
     
     val availableInterfaces: List<String> = emptyList(),
     val selectedInterface: String = "WAN",
-    val interfaceStates: Map<String, InterfaceTrafficState> = emptyMap()
+    val interfaceStates: Map<String, InterfaceTrafficState> = emptyMap(),
+    val errorMessage: String? = null
 )
 
 class TrafficViewModel(
@@ -74,7 +77,7 @@ class TrafficViewModel(
     private fun startPolling() {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
-            while (true) {
+            while (isActive) {
                 repository.getTrafficStats().collect { result ->
                     result.onSuccess { stats ->
                         val updatedStates = _uiState.value.interfaceStates.toMutableMap()
@@ -162,7 +165,8 @@ class TrafficViewModel(
                                 currentDownloadSpeed = activeState?.currentRxSpeed ?: 0.0,
                                 currentUploadSpeed = activeState?.currentTxSpeed ?: 0.0,
                                 totalDownloadBytes = activeState?.totalRxBytes ?: 0L,
-                                totalUploadBytes = activeState?.totalTxBytes ?: 0L
+                                totalUploadBytes = activeState?.totalTxBytes ?: 0L,
+                                errorMessage = null
                             )
                         }
                     }
@@ -170,7 +174,8 @@ class TrafficViewModel(
                         _uiState.update { state ->
                             state.copy(
                                 currentDownloadSpeed = 0.0,
-                                currentUploadSpeed = 0.0
+                                currentUploadSpeed = 0.0,
+                                errorMessage = error.message ?: "Failed to fetch traffic stats"
                             )
                         }
                     }

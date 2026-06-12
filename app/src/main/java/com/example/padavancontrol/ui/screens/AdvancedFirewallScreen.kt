@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -275,7 +277,7 @@ fun AdvancedFirewallScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -283,7 +285,7 @@ fun AdvancedFirewallScreen(
                 actions = {
                     if (!uiState.isLoading && !uiState.isSaving) {
                         IconButton(onClick = { viewModel.loadConfig(pagePath) }) {
-                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Reload", tint = ArcherTeal)
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = t("Reload"), tint = ArcherTeal)
                         }
                     }
                 },
@@ -616,7 +618,7 @@ fun AdvancedFirewallScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 val desc = when(uiState.config.sshdWbfp) {
-                                                    "0" -> "Disabled"
+                                                    "0" -> t("Disabled")
                                                     "1" -> "Block after 5 failed logins"
                                                     "2" -> "Strict block (after 3 failures)"
                                                     else -> "Enabled (Level ${uiState.config.sshdWbfp})"
@@ -625,7 +627,7 @@ fun AdvancedFirewallScreen(
                                                 Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                             }
                                             DropdownMenu(expanded = sshBfpExpanded, onDismissRequest = { sshBfpExpanded = false }) {
-                                                DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(sshdWbfp = "0")); sshBfpExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("Disabled")) }, onClick = { viewModel.updateConfig(uiState.config.copy(sshdWbfp = "0")); sshBfpExpanded = false })
                                                 DropdownMenuItem(text = { Text("Block after 5 attempts") }, onClick = { viewModel.updateConfig(uiState.config.copy(sshdWbfp = "1")); sshBfpExpanded = false })
                                                 DropdownMenuItem(text = { Text("Strict block (3 attempts)") }, onClick = { viewModel.updateConfig(uiState.config.copy(sshdWbfp = "2")); sshBfpExpanded = false })
                                             }
@@ -1059,18 +1061,18 @@ fun AdvancedFirewallScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val desc = when (uiState.config.macFilterMethod) {
-                                                "0" -> "Disabled"
+                                                "0" -> t("Disabled")
                                                 "1" -> "Accept Association (Whitelist)"
                                                 "2" -> "Reject Association (Blacklist)"
-                                                else -> "Disabled"
+                                                else -> t("Disabled")
                                             }
                                             Text(desc, color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
                                         DropdownMenu(expanded = macFilterMethodExpanded, onDismissRequest = { macFilterMethodExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(macFilterMethod = "0")); macFilterMethodExpanded = false })
-                                            DropdownMenuItem(text = { Text("Accept (Only allow whitelisted MACs)") }, onClick = { viewModel.updateConfig(uiState.config.copy(macFilterMethod = "1")); macFilterMethodExpanded = false })
-                                            DropdownMenuItem(text = { Text("Reject (Block blacklisted MACs)") }, onClick = { viewModel.updateConfig(uiState.config.copy(macFilterMethod = "2")); macFilterMethodExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Disabled")) }, onClick = { viewModel.updateConfig(uiState.config.copy(macFilterMethod = "0")); macFilterMethodExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Accept (Only allow whitelisted MACs)")) }, onClick = { viewModel.updateConfig(uiState.config.copy(macFilterMethod = "1")); macFilterMethodExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Reject (Block blacklisted MACs)")) }, onClick = { viewModel.updateConfig(uiState.config.copy(macFilterMethod = "2")); macFilterMethodExpanded = false })
                                         }
                                     }
 
@@ -1107,7 +1109,7 @@ fun AdvancedFirewallScreen(
                                     OutlinedTextField(
                                         value = macFilterInputMac,
                                         onValueChange = { macFilterInputMac = it },
-                                        label = { Text("MAC Address") },
+                                        label = { Text(t("MAC Address")) },
                                         placeholder = { Text("AA:BB:CC:DD:EE:FF") },
                                         isError = macMacError != null,
                                         supportingText = macMacError?.let { { Text(it) } },
@@ -1260,8 +1262,8 @@ fun AdvancedFirewallScreen(
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
                                         DropdownMenu(expanded = serviceFilterDefaultExpanded, onDismissRequest = { serviceFilterDefaultExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("Blacklist (Default ALLOW)") }, onClick = { viewModel.updateConfig(uiState.config.copy(filterLwDefault = "ACCEPT")); serviceFilterDefaultExpanded = false })
-                                            DropdownMenuItem(text = { Text("Whitelist (Default DROP)") }, onClick = { viewModel.updateConfig(uiState.config.copy(filterLwDefault = "DROP")); serviceFilterDefaultExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Blacklist (Default ALLOW)")) }, onClick = { viewModel.updateConfig(uiState.config.copy(filterLwDefault = "ACCEPT")); serviceFilterDefaultExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Whitelist (Default DROP)")) }, onClick = { viewModel.updateConfig(uiState.config.copy(filterLwDefault = "DROP")); serviceFilterDefaultExpanded = false })
                                         }
                                     }
 
@@ -1424,13 +1426,30 @@ fun AdvancedFirewallScreen(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Dynamic DNS Hijacking + ipset", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 12.dp))
+                                    Text("Dynamic DNS Hijacking + DNS Sinkhole", fontWeight = FontWeight.Bold, color = ArcherTeal, modifier = Modifier.padding(bottom = 12.dp))
                                     Text(
-                                        text = "Resolves domains locally via dnsmasq and blocks matching client requests at Layer 3/4 in kernel memory. This is highly efficient and fully supports HTTPS.",
+                                        text = "Resolves domains locally via dnsmasq and blocks them by returning an invalid IP address (0.0.0.0). This prevents clients from connecting to the server while avoiding shared CDN IP blocking issues.",
                                         color = Color.Gray,
                                         fontSize = 12.sp,
                                         lineHeight = 16.sp
                                     )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("Block Public DoH/DoT Providers", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                            Text(
+                                                text = "Drops traffic to known DNS-over-HTTPS IPs (Google, Cloudflare, Quad9, etc.) and blocks port 853. This forces devices with custom Secure DNS settings to fall back to the router's DNS.",
+                                                color = Color.Gray,
+                                                fontSize = 11.sp,
+                                                lineHeight = 14.sp
+                                            )
+                                        }
+                                        Switch(
+                                            checked = uiState.blockPublicDoh,
+                                            onCheckedChange = { viewModel.toggleBlockPublicDoh(it, "Advanced_DHCP_Content.asp") },
+                                            colors = SwitchDefaults.colors(checkedThumbColor = ArcherTeal, checkedTrackColor = ArcherTeal.copy(alpha = 0.5f))
+                                        )
+                                    }
                                 }
                             }
 
@@ -1521,9 +1540,9 @@ fun AdvancedFirewallScreen(
                                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                             } else {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(imageVector = Icons.Default.Check, contentDescription = "Save")
+                                    Icon(imageVector = Icons.Default.Check, contentDescription = t("Save"))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Apply Settings", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text(t("Apply Settings"), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }

@@ -27,6 +27,9 @@ class RouterMonitorWorker(
         val repository = DefaultPadavanRepository(credentialStore)
         val notificationHelper = NotificationHelper(context)
 
+        var hasFailure = false
+        var failureMessage = ""
+
         try {
             // 1. Fetch system status (for temperature alerts)
             repository.getSystemStatus().collect { statusResult ->
@@ -41,63 +44,96 @@ class RouterMonitorWorker(
                             "Your router CPU temperature is extremely high: ${status.cpuTemp} (Threshold: $threshold°C)"
                         )
                     }
+                }.onFailure { exception ->
+                    hasFailure = true
+                    failureMessage = exception.message ?: "Failed to fetch system status"
                 }
             }
 
             // 2. Fetch WAN status (for connection alerts)
-            repository.getWanStatus().collect { wanResult ->
-                wanResult.onSuccess { wan ->
-                    val lastWanIp = settingsDataStore.getLastKnownWanIp().first()
-                    val currentWanIp = wan.wanIp
+            if (!hasFailure) {
+                repository.getWanStatus().collect { wanResult ->
+                    wanResult.onSuccess { wan ->
+                        val lastWanIp = settingsDataStore.getLastKnownWanIp().first()
+                        val currentWanIp = wan.wanIp
 
-                    val shouldNotifyWan = settingsDataStore.isNotifyWanDisconnect().first()
+                        val shouldNotifyWan = settingsDataStore.isNotifyWanDisconnect().first()
 
-                    if (shouldNotifyWan) {
-                        if (currentWanIp == "0.0.0.0" || currentWanIp.isEmpty()) {
-                            // WAN is disconnected
-                            notificationHelper.showNotification(
-                                "WAN Connection Disconnected 🔴",
-                                "The internet gateway connection was lost. External IP is empty."
-                            )
-                        } else if (lastWanIp != null && lastWanIp != currentWanIp && lastWanIp != "0.0.0.0") {
-                            // IP changed
-                            notificationHelper.showNotification(
-                                "WAN Connection Reassigned 🌐",
-                                "The internet connection is restored! External IP: $currentWanIp"
-                            )
+                        if (shouldNotifyWan) {
+                            if (currentWanIp == "0.0.0.0" || currentWanIp.isEmpty()) {
+                                // WAN is disconnected
+                                notificationHelper.showNotification(
+                                    "WAN Connection Disconnected 🔴",
+                                    "The internet gateway connection was lost. External IP is empty."
+                                )
+                            } else if (!lastWanIp.isNullOrEmpty() && lastWanIp != currentWanIp && currentWanIp != "0.0.0.0" && currentWanIp.isNotEmpty()) {
+                                // IP changed or recovered from "0.0.0.0"
+                                notificationHelper.showNotification(
+                                    "WAN Connection Reassigned 🌐",
+                                    "The internet connection is restored! External IP: $currentWanIp"
+                                )
+                            }
                         }
-                    }
 
-                    // Persist current WAN IP
-                    settingsDataStore.saveLastKnownWanIp(currentWanIp)
+                        // Persist current WAN IP
+                        settingsDataStore.saveLastKnownWanIp(currentWanIp)
+                    }.onFailure { exception ->
+                        hasFailure = true
+                        failureMessage = exception.message ?: "Failed to fetch WAN status"
+                    }
                 }
             }
 
             // 3. Fetch active LAN clients (for new device alerts)
-            repository.getLanClients().collect { clientsResult ->
-                clientsResult.onSuccess { clients ->
-                    val lastDeviceMacs = settingsDataStore.getLastKnownDeviceMacs().first()
-                    val currentDeviceMacs = clients.map { it.macAddress }.toSet()
+            if (!hasFailure) {
+                repository.getLanClients().collect { clientsResult ->
+                    clientsResult.onSuccess { clients ->
+                        val lastDeviceMacs = settingsDataStore.getLastKnownDeviceMacs().first()
+                        val currentDeviceMacs = clients.map { it.macAddress }.toSet()
 
-                    val shouldNotifyNewDevice = settingsDataStore.isNotifyNewDevice().first()
+                        val shouldNotifyNewDevice = settingsDataStore.isNotifyNewDevice().first()
 
-                    if (shouldNotifyNewDevice && lastDeviceMacs.isNotEmpty()) {
-                        val newDevices = clients.filter { it.macAddress !in lastDeviceMacs }
-                        for (dev in newDevices) {
-                            val name = dev.hostname.ifEmpty { dev.ipAddress }
-                            notificationHelper.showNotification(
-                                "New Device Connected 📱",
-                                "Device '$name' (${dev.macAddress}) has joined the network."
-                            )
+                        if (shouldNotifyNewDevice && lastDeviceMacs.isNotEmpty()) {
+                            val newDevices = clients.filter { it.macAddress !in lastDeviceMacs }
+                            for (dev in newDevices) {
+                                val name = dev.hostname.ifEmpty { dev.ipAddress }
+                                notificationHelper.showNotification(
+                                    "New Device Connected 📱",
+                                    "Device '$name' (${dev.macAddress}) has joined the network."
+                                )
+                            }
                         }
-                    }
 
-                    // Persist current devices MACs
-                    settingsDataStore.saveLastKnownDeviceMacs(currentDeviceMacs)
+                        // Persist current devices MACs
+                        settingsDataStore.saveLastKnownDeviceMacs(currentDeviceMacs)
+                    }.onFailure { exception ->
+                        hasFailure = true
+                        failureMessage = exception.message ?: "Failed to fetch LAN clients"
+                    }
                 }
             }
 
-            return Result.success()
+            val lastOnline = settingsDataStore.getLastKnownOnline().first() ?: true
+
+            if (hasFailure) {
+                if (lastOnline) {
+                    notificationHelper.showNotification(
+                        "Router Connection Offline 🔴",
+                        "Cannot connect to the router at ${repository.getRouterIp()}. Please check your connection."
+                    )
+                    settingsDataStore.saveLastKnownOnline(false)
+                }
+                return Result.retry()
+            } else {
+                if (!lastOnline) {
+                    notificationHelper.showNotification(
+                        "Router Connection Online 🟢",
+                        "Connected to the router at ${repository.getRouterIp()}."
+                    )
+                }
+                settingsDataStore.saveLastKnownOnline(true)
+                return Result.success()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             return Result.retry()

@@ -14,6 +14,7 @@ import com.example.padavancontrol.data.models.ServiceFilterRule
 import com.example.padavancontrol.data.models.MacFilterRule
 import com.example.padavancontrol.data.models.AdminConfig
 import com.example.padavancontrol.data.models.ScriptConfig
+import com.example.padavancontrol.data.models.VpnConfig
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import java.util.regex.Pattern
@@ -28,6 +29,7 @@ object PadavanResponseParser {
             val matcher = pattern.matcher(html)
             if (matcher.find()) {
                 var jsonStr = matcher.group(1) ?: "{}"
+                jsonStr = jsonStr.replace("'", "\"")
                 
                 // Padavan firmware outputs hex numbers (e.g., 0x4a) unquoted, which breaks Gson.
                 // We wrap them in quotes so Gson parses them as Strings.
@@ -135,7 +137,8 @@ object PadavanResponseParser {
                 val wirelessContent = wirelessMatcher.group(1)?.trim() ?: ""
                 if (wirelessContent.isNotEmpty()) {
                     try {
-                        val jsonStr = "{ $wirelessContent }"
+                        var jsonStr = "{ $wirelessContent }"
+                        jsonStr = jsonStr.replace("'", "\"")
                         val jsonObject = gson.fromJson(jsonStr, com.google.gson.JsonObject::class.java)
                         for (key in jsonObject.keySet()) {
                             wirelessMap[key] = jsonObject.get(key).asString
@@ -154,7 +157,8 @@ object PadavanResponseParser {
                 val blockedContent = blockedMatcher.group(1)?.trim() ?: ""
                 if (blockedContent.isNotEmpty()) {
                     try {
-                        val jsonStr = "[$blockedContent]"
+                        var jsonStr = "[$blockedContent]"
+                        jsonStr = jsonStr.replace("'", "\"")
                         val jsonArray = gson.fromJson(jsonStr, com.google.gson.JsonArray::class.java)
                         for (i in 0 until jsonArray.size()) {
                             val item = jsonArray[i]
@@ -179,7 +183,8 @@ object PadavanResponseParser {
                 if (arrayContent.isEmpty()) return clients
 
                 // Padavan output format is: [IP, MAC, DeviceName, Type, http, staled]
-                val jsonStr = "[$arrayContent]"
+                var jsonStr = "[$arrayContent]"
+                jsonStr = jsonStr.replace("'", "\"")
                 val jsonArray = gson.fromJson(jsonStr, com.google.gson.JsonArray::class.java)
 
                 for (item in jsonArray) {
@@ -382,9 +387,9 @@ object PadavanResponseParser {
                             if (firstOptMatcher.find()) return firstOptMatcher.group(1) ?: ""
                         }
                     } else {
-                        val valueMatch = Pattern.compile("value=[\"']?([^\"'>\\s]*)", Pattern.CASE_INSENSITIVE).matcher(tagStr)
+                        val valueMatch = Pattern.compile("value=(?:[\"']([^\"']*)[\"']|([^\"'>\\s]*))", Pattern.CASE_INSENSITIVE).matcher(tagStr)
                         if (valueMatch.find()) {
-                            return valueMatch.group(1) ?: ""
+                            return valueMatch.group(1) ?: valueMatch.group(2) ?: ""
                         }
                     }
                 }
@@ -863,7 +868,8 @@ object PadavanResponseParser {
                 val arrayContent = ipMonMatcher.group(1)?.trim() ?: ""
                 if (arrayContent.isNotEmpty()) {
                     try {
-                        val jsonStr = "[$arrayContent]"
+                        var jsonStr = "[$arrayContent]"
+                        jsonStr = jsonStr.replace("'", "\"")
                         val jsonArray = gson.fromJson(jsonStr, com.google.gson.JsonArray::class.java)
                         for (item in jsonArray) {
                             if (!item.isJsonArray) continue
@@ -1631,8 +1637,6 @@ object PadavanResponseParser {
         } else {
             extractValueOrKeep(html, "op_mode", existingConfig.opMode)
         }
-        val btnWpsMode = extractValueOrKeep(html, "btn_wps_mode", existingConfig.btnWpsMode)
-        val ledPowerMode = extractValueOrKeep(html, "led_pwr_mode", existingConfig.ledPowerMode)
         val btnWpsShort = extractValueOrKeep(html, "ez_action_short", existingConfig.btnWpsShort)
         val btnWpsLong = extractValueOrKeep(html, "ez_action_long", existingConfig.btnWpsLong)
         val ledEnable = extractBoolOrKeep(html, "front_led_all", existingConfig.ledEnable)
@@ -1700,8 +1704,6 @@ object PadavanResponseParser {
             crontabLogin = crontabLogin,
             watchdogCpu = watchdogCpu,
             opMode = opMode,
-            btnWpsMode = btnWpsMode,
-            ledPowerMode = ledPowerMode,
             btnWpsShort = btnWpsShort,
             btnWpsLong = btnWpsLong,
             ledEnable = ledEnable,
@@ -1810,7 +1812,24 @@ object PadavanResponseParser {
             val entryMatcher = entryPattern.matcher(arrayContent)
             while (entryMatcher.find()) {
                 val row = entryMatcher.group(1) ?: continue
-                val items = row.split(",").map { it.trim().replace("'", "").replace("\"", "") }
+                val items = mutableListOf<String>()
+                val fieldMatcher = Pattern.compile("\\s*'([^']*)'\\s*|\\s*\"([^\"]*)\"\\s*|([^,]+)").matcher(row)
+                while (fieldMatcher.find()) {
+                    val g1 = fieldMatcher.group(1)
+                    val g2 = fieldMatcher.group(2)
+                    val g3 = fieldMatcher.group(3)
+                    if (g1 != null) {
+                        items.add(g1)
+                    } else if (g2 != null) {
+                        items.add(g2)
+                    } else if (g3 != null) {
+                        val trimmed = g3.trim()
+                        if (trimmed.isNotEmpty()) {
+                            items.add(trimmed)
+                        }
+                    }
+                }
+
                 if (items.size >= 4) {
                     if (varName == "wds_aplist") {
                         val bssid = items.getOrNull(1) ?: ""
@@ -1838,7 +1857,7 @@ object PadavanResponseParser {
                     var signal = 0
                     
                     if (bssidIndex == 1) {
-                        ssid = items[0]
+                        ssid = items.getOrNull(0) ?: ""
                         channel = items.getOrNull(2) ?: "0"
                         val type = items.getOrNull(3) ?: ""
                         val encrypt = items.getOrNull(4) ?: ""
@@ -1846,14 +1865,14 @@ object PadavanResponseParser {
                         val sig = if (items.size > 5) items.getOrNull(5) ?: "0" else items.getOrNull(4) ?: "0"
                         signal = sig.replace("%", "").replace("dBm", "").trim().toIntOrNull() ?: 0
                     } else if (bssidIndex == 2) {
-                        channel = items[0]
-                        ssid = items[1]
+                        channel = items.getOrNull(0) ?: "0"
+                        ssid = items.getOrNull(1) ?: ""
                         security = items.getOrNull(3) ?: "Open"
                         val sig = items.getOrNull(4) ?: "0"
                         signal = sig.replace("%", "").replace("dBm", "").trim().toIntOrNull() ?: 0
                     } else {
-                        ssid = if (bssidIndex > 0) items[bssidIndex - 1] else ""
-                        channel = if (bssidIndex > 1) items[bssidIndex - 2] else items.getOrNull(2) ?: "0"
+                        ssid = if (bssidIndex > 0) (items.getOrNull(bssidIndex - 1) ?: "") else ""
+                        channel = if (bssidIndex > 1) (items.getOrNull(bssidIndex - 2) ?: "0") else (items.getOrNull(2) ?: "0")
                         security = items.getOrNull(bssidIndex + 1) ?: "Open"
                         val sig = items.getOrNull(bssidIndex + 2) ?: "0"
                         signal = sig.replace("%", "").replace("dBm", "").trim().toIntOrNull() ?: 0
@@ -1895,5 +1914,259 @@ object PadavanResponseParser {
             e.printStackTrace()
         }
         return null
+    }
+
+    fun parseEthernetPorts(html: String): List<com.example.padavancontrol.data.models.EthernetPortInfo> {
+        val ports = mutableListOf<com.example.padavancontrol.data.models.EthernetPortInfo>()
+        val lines = html.split("\n")
+        
+        var currentPortName: String? = null
+        var currentLink = "No Link"
+        val currentMib = mutableMapOf<String, Long>()
+        
+        fun commitCurrentPort() {
+            val name = currentPortName ?: return
+            val counters = com.example.padavancontrol.data.models.MibCounters(
+                txGoodOctets = currentMib["TxGoodOctets"] ?: 0L,
+                txUcastFrames = currentMib["TxUcastFrames"] ?: 0L,
+                txMcastFrames = currentMib["TxMcastFrames"] ?: 0L,
+                txBcastFrames = currentMib["TxBcastFrames"] ?: 0L,
+                txDropFrames = currentMib["TxDropFrames"] ?: 0L,
+                txPauseFrames = currentMib["TxPauseFrames"] ?: 0L,
+                txCollisions = currentMib["TxCollisions"] ?: 0L,
+                txCrcError = currentMib["TxCRCError"] ?: 0L,
+                rxGoodOctets = currentMib["RxGoodOctets"] ?: 0L,
+                rxUcastFrames = currentMib["RxUcastFrames"] ?: 0L,
+                rxMcastFrames = currentMib["RxMcastFrames"] ?: 0L,
+                rxBcastFrames = currentMib["RxBcastFrames"] ?: 0L,
+                rxDropFrames = currentMib["RxDropFrames"] ?: 0L,
+                rxPauseFrames = currentMib["RxPauseFrames"] ?: 0L,
+                rxFilterFrames = currentMib["RxFilterFrames"] ?: 0L,
+                rxCrcError = currentMib["RxCRCError"] ?: 0L,
+                rxAlignmentError = currentMib["RxAligmentError"] ?: 0L
+            )
+            ports.add(com.example.padavancontrol.data.models.EthernetPortInfo(name, currentLink, counters))
+            currentMib.clear()
+            currentLink = "No Link"
+        }
+        
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) continue
+            
+            if (trimmed.startsWith("- WAN", ignoreCase = true)) {
+                commitCurrentPort()
+                currentPortName = "WAN"
+                continue
+            } else if (trimmed.startsWith("- LAN 1", ignoreCase = true)) {
+                commitCurrentPort()
+                currentPortName = "LAN 1"
+                continue
+            } else if (trimmed.startsWith("- LAN 2", ignoreCase = true)) {
+                commitCurrentPort()
+                currentPortName = "LAN 2"
+                continue
+            } else if (trimmed.startsWith("- LAN 3", ignoreCase = true)) {
+                commitCurrentPort()
+                currentPortName = "LAN 3"
+                continue
+            } else if (trimmed.startsWith("- LAN 4", ignoreCase = true)) {
+                commitCurrentPort()
+                currentPortName = "LAN 4"
+                continue
+            }
+            
+            if (currentPortName != null) {
+                if (trimmed.contains(":")) {
+                    val parts = trimmed.split(":", limit = 2)
+                    val key = parts[0].trim()
+                    val value = parts[1].trim()
+                    if (key.equals("Port Link", ignoreCase = true)) {
+                        currentLink = value
+                    } else {
+                        val numVal = value.toLongOrNull()
+                        if (numVal != null) {
+                            currentMib[key] = numVal
+                        }
+                    }
+                }
+            }
+        }
+        commitCurrentPort()
+        
+        return ports
+    }
+
+    fun parseWirelessStatusPage(html: String, band: String): com.example.padavancontrol.data.models.WirelessSectionInfo {
+        val matcher = Pattern.compile("<textarea[^>]*?>(.*?)</textarea>", Pattern.DOTALL).matcher(html)
+        val text = if (matcher.find()) matcher.group(1)?.trim() ?: "" else html.trim()
+        return parseWirelessStatusText(text, band)
+    }
+
+    fun parseWirelessStatusText(text: String, band: String): com.example.padavancontrol.data.models.WirelessSectionInfo {
+        var macApMain = ""
+        var macApClient = ""
+        var operationMode = ""
+        var wphyMode = ""
+        var channelMain = 0
+        var apClientConn: com.example.padavancontrol.data.models.ApClientConnection? = null
+        
+        val lines = text.split("\n")
+        for (i in lines.indices) {
+            val line = lines[i].trim()
+            if (line.isEmpty()) continue
+            
+            if (line.contains(":")) {
+                val parts = line.split(":", limit = 2)
+                val key = parts[0].trim().lowercase()
+                val valStr = parts[1].trim()
+                when {
+                    key.contains("mac (ap main)") -> macApMain = valStr
+                    key.contains("mac (ap-client)") -> macApClient = valStr
+                    key.contains("operation mode") -> operationMode = valStr
+                    key.contains("wphy mode") -> wphyMode = valStr
+                    key.contains("channel main") -> channelMain = valStr.toIntOrNull() ?: 0
+                }
+            } else if (line.startsWith("AP-Client Connection", ignoreCase = true)) {
+                var dataIdx = i + 1
+                while (dataIdx < lines.size) {
+                    val dLine = lines[dataIdx].trim()
+                    if (dLine.isEmpty() || dLine.startsWith("-") || dLine.contains("BSSID")) {
+                        dataIdx++
+                        continue
+                    }
+                    val tokens = dLine.split(Regex("\\s+"))
+                    if (tokens.size >= 9) {
+                        apClientConn = com.example.padavancontrol.data.models.ApClientConnection(
+                            bssid = tokens.getOrNull(0) ?: "",
+                            phyMode = tokens.getOrNull(1) ?: "",
+                            bw = tokens.getOrNull(2) ?: "",
+                            mcs = tokens.getOrNull(3)?.toIntOrNull() ?: 0,
+                            sgi = tokens.getOrNull(4) ?: "",
+                            ldpc = tokens.getOrNull(5) ?: "",
+                            stbc = tokens.getOrNull(6) ?: "",
+                            tRate = tokens.getOrNull(7) ?: "",
+                            rssi = tokens.getOrNull(8)?.toIntOrNull() ?: 0
+                        )
+                    }
+                    break
+                }
+            }
+        }
+        
+        val stationsListIdx = text.indexOf("AP Main Stations List", ignoreCase = true)
+        val mainStationsListRaw = if (stationsListIdx != -1) {
+            val rawPart = text.substring(stationsListIdx + "AP Main Stations List".length).trim()
+            rawPart.removePrefix("----------------------------------------").trim()
+        } else {
+            ""
+        }
+        
+        val stationsList = mutableListOf<com.example.padavancontrol.data.models.StationInfo>()
+        if (mainStationsListRaw.isNotEmpty()) {
+            val sLines = mainStationsListRaw.split("\n")
+            for (sLine in sLines) {
+                val trimmed = sLine.trim()
+                if (trimmed.isEmpty() || trimmed.startsWith("MAC") || trimmed.startsWith("-")) continue
+                val tokens = trimmed.split(Regex("\\s+"))
+                if (tokens.size >= 10) {
+                    stationsList.add(
+                        com.example.padavancontrol.data.models.StationInfo(
+                            mac = tokens.getOrNull(0) ?: "",
+                            aid = tokens.getOrNull(1)?.toIntOrNull() ?: 0,
+                            psm = tokens.getOrNull(2) ?: "",
+                            mimoPs = tokens.getOrNull(3) ?: "",
+                            mcs = tokens.getOrNull(4)?.toIntOrNull() ?: 0,
+                            bw = tokens.getOrNull(5) ?: "",
+                            sgi = tokens.getOrNull(6) ?: "",
+                            stbc = tokens.getOrNull(7) ?: "",
+                            tRate = tokens.getOrNull(8) ?: "",
+                            rssi = tokens.getOrNull(9)?.toIntOrNull() ?: 0
+                        )
+                    )
+                }
+            }
+        }
+        
+        return com.example.padavancontrol.data.models.WirelessSectionInfo(
+            band = band,
+            macApMain = macApMain,
+            macApClient = macApClient,
+            operationMode = operationMode,
+            wphyMode = wphyMode,
+            channelMain = channelMain,
+            apClientConnection = apClientConn,
+            mainStationsListRaw = mainStationsListRaw,
+            stations = stationsList
+        )
+    }
+
+    fun parseVpnConfig(html: String, existingConfig: VpnConfig = VpnConfig()): VpnConfig {
+        val enable = extractBoolOrKeep(html, "vpnc_enable", existingConfig.enable)
+        val type = extractValueOrKeep(html, "vpnc_type", existingConfig.type)
+        val peer = extractValueOrKeep(html, "vpnc_peer", existingConfig.peer)
+        val username = extractValueOrKeep(html, "vpnc_user", existingConfig.username)
+        val password = extractValueOrKeep(html, "vpnc_pass", existingConfig.password)
+        val authType = extractValueOrKeep(html, "vpnc_auth", existingConfig.authType)
+        val mppe = extractValueOrKeep(html, "vpnc_mppe", existingConfig.mppe)
+        val mtu = extractIntOrKeep(html, "vpnc_mtu", existingConfig.mtu)
+        val mru = extractIntOrKeep(html, "vpnc_mru", existingConfig.mru)
+        val pppdOptions = extractValueOrKeep(html, "vpnc_pppd", existingConfig.pppdOptions)
+        val firewall = extractValueOrKeep(html, "vpnc_sfw", existingConfig.firewall)
+        val peerDns = extractValueOrKeep(html, "vpnc_pdns", existingConfig.peerDns)
+        val defaultGateway = extractBoolOrKeep(html, "vpnc_dgw", existingConfig.defaultGateway)
+        val remoteNetwork = extractValueOrKeep(html, "vpnc_rnet", existingConfig.remoteNetwork)
+        val remoteMask = extractValueOrKeep(html, "vpnc_rmsk", existingConfig.remoteMask)
+        
+        val ovpnPort = extractIntOrKeep(html, "vpnc_ov_port", existingConfig.ovpnPort)
+        val ovpnProtocol = extractValueOrKeep(html, "vpnc_ov_prot", existingConfig.ovpnProtocol)
+        val ovpnMode = extractValueOrKeep(html, "vpnc_ov_mode", existingConfig.ovpnMode)
+        val ovpnAuthType = extractValueOrKeep(html, "vpnc_ov_auth", existingConfig.ovpnAuthType)
+        val ovpnDigest = extractValueOrKeep(html, "vpnc_ov_mdig", existingConfig.ovpnDigest)
+        val ovpnCipher = extractValueOrKeep(html, "vpnc_ov_ciph", existingConfig.ovpnCipher)
+        val ovpnLzo = extractValueOrKeep(html, "vpnc_ov_clzo", existingConfig.ovpnLzo)
+        val ovpnHmacSign = extractValueOrKeep(html, "vpnc_ov_atls", existingConfig.ovpnHmacSign)
+        val ovpnRouteOptions = extractValueOrKeep(html, "vpnc_ov_cnat", existingConfig.ovpnRouteOptions)
+        
+        val ovpnCustomConfig = extractTextareaOrKeep(html, "ovpncli.client.conf", existingConfig.ovpnCustomConfig)
+        val caCert = extractTextareaOrKeep(html, "ovpncli.ca.crt", existingConfig.caCert)
+        val clientCert = extractTextareaOrKeep(html, "ovpncli.client.crt", existingConfig.clientCert)
+        val clientKey = extractTextareaOrKeep(html, "ovpncli.client.key", existingConfig.clientKey)
+        val tlsAuthKey = extractTextareaOrKeep(html, "ovpncli.ta.key", existingConfig.tlsAuthKey)
+        
+        val postScript = extractTextareaOrKeep(html, "scripts.vpnc_server_script.sh", existingConfig.postScript)
+        
+        return VpnConfig(
+            enable = enable,
+            type = type,
+            peer = peer,
+            username = username,
+            password = password,
+            authType = authType,
+            mppe = mppe,
+            mtu = mtu,
+            mru = mru,
+            pppdOptions = pppdOptions,
+            firewall = firewall,
+            peerDns = peerDns,
+            defaultGateway = defaultGateway,
+            remoteNetwork = remoteNetwork,
+            remoteMask = remoteMask,
+            ovpnPort = ovpnPort,
+            ovpnProtocol = ovpnProtocol,
+            ovpnMode = ovpnMode,
+            ovpnAuthType = ovpnAuthType,
+            ovpnDigest = ovpnDigest,
+            ovpnCipher = ovpnCipher,
+            ovpnLzo = ovpnLzo,
+            ovpnHmacSign = ovpnHmacSign,
+            ovpnRouteOptions = ovpnRouteOptions,
+            ovpnCustomConfig = ovpnCustomConfig,
+            caCert = caCert,
+            clientCert = clientCert,
+            clientKey = clientKey,
+            tlsAuthKey = tlsAuthKey,
+            postScript = postScript
+        )
     }
 }

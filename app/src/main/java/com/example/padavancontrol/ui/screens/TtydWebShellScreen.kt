@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,12 +34,12 @@ fun TtydWebShellScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("ttyd Web Shell") },
+                title = { Text(t("ttyd Web Shell")) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -55,6 +57,12 @@ fun TtydWebShellScreen(
                     webViewClient = WebViewClient()
                     loadUrl(ttydUrl)
                 }
+            },
+            onRelease = { webView ->
+                webView.stopLoading()
+                webView.clearHistory()
+                webView.removeAllViews()
+                webView.destroy()
             },
             modifier = Modifier
                 .fillMaxSize()

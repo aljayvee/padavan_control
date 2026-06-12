@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -98,9 +100,9 @@ fun AdvancedWirelessScreen(
             "General" -> if (is5GHz) "Advanced_Wireless_Content.asp" else "Advanced_Wireless2g_Content.asp"
             "Guest" -> if (is5GHz) "Advanced_WGuest_Content.asp" else "Advanced_WGuest2g_Content.asp"
             "Bridge" -> if (is5GHz) "Advanced_WMode_Content.asp" else "Advanced_WMode2g_Content.asp"
-            "Professional" -> if (is5GHz) "Advanced_Wireless_Content.asp" else "Advanced_Wireless2g_Content.asp"
+            "Professional" -> if (is5GHz) "Advanced_WAdvanced_Content.asp" else "Advanced_WAdvanced2g_Content.asp"
             "RADIUS" -> if (is5GHz) "Advanced_WSecurity_Content.asp" else "Advanced_WSecurity2g_Content.asp"
-            "MAC Filter" -> if (is5GHz) "Advanced_MACFilter_Content.asp" else "Advanced_MACFilter2g_Content.asp"
+            "MAC Filter" -> if (is5GHz) "Advanced_ACL_Content.asp" else "Advanced_ACL2g_Content.asp"
             else -> if (is5GHz) "Advanced_Wireless_Content.asp" else "Advanced_Wireless2g_Content.asp"
         }
     }
@@ -154,33 +156,33 @@ fun AdvancedWirelessScreen(
         val config = uiState.config
         if (section == "General" || section == "Professional") {
             if (config.ssid.isBlank()) {
-                ssidError = "SSID name cannot be blank."
+                ssidError = t("SSID name cannot be blank.")
                 isValid = false
             }
             if (config.authMode.contains("psk") && (config.wpaPsk.length < 8 || config.wpaPsk.length > 64)) {
-                wpaPskError = "WPA password must be between 8 and 64 characters."
+                wpaPskError = t("WPA password must be between 8 and 64 characters.")
                 isValid = false
             }
         }
 
         if (section == "Guest" && config.guestEnabled) {
             if (config.guestSsid.isBlank()) {
-                guestSsidError = "Guest SSID name cannot be blank."
+                guestSsidError = t("Guest SSID name cannot be blank.")
                 isValid = false
             }
             if (config.guestAuthMode.contains("psk") && (config.guestWpaPsk.length < 8 || config.guestWpaPsk.length > 64)) {
-                guestWpaPskError = "Guest WPA password must be between 8 and 64 characters."
+                guestWpaPskError = t("Guest WPA password must be between 8 and 64 characters.")
                 isValid = false
             }
         }
 
         if (section == "Bridge" && (config.modeX == "3" || config.modeX == "4")) {
             if (config.staSsid.isBlank()) {
-                staSsidError = "AP Client SSID name cannot be blank."
+                staSsidError = t("AP Client SSID name cannot be blank.")
                 isValid = false
             }
             if (config.staAuthMode.contains("psk") && (config.staWpaPsk.length < 8 || config.staWpaPsk.length > 64)) {
-                staWpaPskError = "AP Client password must be between 8 and 64 characters."
+                staWpaPskError = t("AP Client password must be between 8 and 64 characters.")
                 isValid = false
             }
         }
@@ -191,7 +193,7 @@ fun AdvancedWirelessScreen(
     // Save config
     fun saveConfig() {
         if (!validateInputs()) {
-            Toast.makeText(context, "Please fix form validation errors first.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, t("Please fix form validation errors first."), Toast.LENGTH_SHORT).show()
             return
         }
         viewModel.saveConfig(pagePath, is5GHz)
@@ -200,7 +202,7 @@ fun AdvancedWirelessScreen(
     if (showScanDialog) {
         AlertDialog(
             onDismissRequest = { showScanDialog = false },
-            title = { Text("Site Survey - Select Uplink AP", fontWeight = FontWeight.Bold, color = ArcherTeal) },
+            title = { Text(t("Site Survey - Select Uplink AP"), fontWeight = FontWeight.Bold, color = ArcherTeal) },
             text = {
                 Column(
                     modifier = Modifier
@@ -211,7 +213,7 @@ fun AdvancedWirelessScreen(
                         OutlinedTextField(
                             value = scanSearchQuery,
                             onValueChange = { scanSearchQuery = it },
-                            label = { Text("Search SSID...") },
+                            label = { Text(t("Search SSID...")) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 12.dp),
@@ -231,7 +233,7 @@ fun AdvancedWirelessScreen(
                             )
                         } else if (uiState.scanResults.isEmpty()) {
                             Text(
-                                "No wireless networks found. Click rescan to retry.",
+                                t("No wireless networks found. Click rescan to retry."),
                                 modifier = Modifier.align(Alignment.Center),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -244,7 +246,7 @@ fun AdvancedWirelessScreen(
 
                             if (filteredNetworks.isEmpty()) {
                                 Text(
-                                    "No networks match your search.",
+                                    t("No networks match your search."),
                                     modifier = Modifier.align(Alignment.Center),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -301,12 +303,12 @@ fun AdvancedWirelessScreen(
                     onClick = { viewModel.scanNetworks(is5GHz) },
                     colors = ButtonDefaults.buttonColors(containerColor = ArcherTeal)
                 ) {
-                    Text("Rescan")
+                    Text(t("Rescan"))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showScanDialog = false }) {
-                    Text("Close")
+                    Text(t("Close"))
                 }
             }
         )
@@ -320,7 +322,7 @@ fun AdvancedWirelessScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -328,7 +330,7 @@ fun AdvancedWirelessScreen(
                 actions = {
                     if (!uiState.isLoading && !uiState.isSaving) {
                         IconButton(onClick = { viewModel.loadConfig(pagePath, is5GHz) }) {
-                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Reload", tint = ArcherTeal)
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = t("Reload"), tint = ArcherTeal)
                         }
                     }
                 },
@@ -365,7 +367,7 @@ fun AdvancedWirelessScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Connection Error",
+                        text = t("Connection Error"),
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
                         color = MaterialTheme.colorScheme.onSurface
@@ -382,7 +384,7 @@ fun AdvancedWirelessScreen(
                         onClick = { viewModel.loadConfig(pagePath, is5GHz) },
                         colors = ButtonDefaults.buttonColors(containerColor = ArcherTeal)
                     ) {
-                        Text("Retry Connection", color = Color.White)
+                        Text(t("Retry Connection"), color = Color.White)
                     }
                 }
             } else if (showLoader) {
@@ -411,7 +413,7 @@ fun AdvancedWirelessScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = uiState.loadStatus.ifEmpty { "Fetching Wireless configuration..." },
+                        text = uiState.loadStatus.ifEmpty { t("Fetching Wireless configuration...") },
                         color = Color.Gray,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
@@ -489,11 +491,11 @@ fun AdvancedWirelessScreen(
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("COMMITTING CHANGES...", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(t("COMMITTING CHANGES..."), color = Color.White, fontWeight = FontWeight.Bold)
                         } else {
                             Icon(imageVector = Icons.Default.Check, contentDescription = "Apply", tint = Color.White)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("APPLY SETTINGS", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(t("APPLY SETTINGS"), color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                     
@@ -544,7 +546,7 @@ fun GlassHeaderCard(is5GHz: Boolean, section: String) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Configuring Newifi D2 hardware interface parameters directly.",
+                    text = t("Configuring Newifi D2 hardware interface parameters directly."),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -669,7 +671,7 @@ fun GeneralSettingsForm(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("General Radio Configuration", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+            Text(t("General Radio Configuration"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
 
             // Radio Switch
             Row(
@@ -678,8 +680,8 @@ fun GeneralSettingsForm(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Wireless Radio Enable", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Text("Deactivating cuts power supply to transceiver completely.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(t("Wireless Radio Enable"), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text(t("Deactivating cuts power supply to transceiver completely."), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(
                     checked = config.isEnabled,
@@ -693,7 +695,7 @@ fun GeneralSettingsForm(
                 OutlinedTextField(
                     value = config.ssid,
                     onValueChange = { onConfigChange(config.copy(ssid = it)) },
-                    label = { Text("Wireless Network SSID") },
+                    label = { Text(t("Wireless Network SSID")) },
                     isError = ssidError != null,
                     supportingText = ssidError?.let { { Text(it, color = Color.Red) } },
                     modifier = Modifier.fillMaxWidth(),
@@ -707,8 +709,8 @@ fun GeneralSettingsForm(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Hide SSID (Block Broadcast)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text("Stops beacon broadcasts. Clients must connect manually.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(t("Hide SSID (Block Broadcast)"), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(t("Stops beacon broadcasts. Clients must connect manually."), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(
                         checked = config.isClosed,
@@ -740,7 +742,7 @@ fun GeneralSettingsForm(
                     listOf("Auto" to "0", "1" to "1", "2" to "2", "3" to "3", "4" to "4", "5" to "5", "6" to "6", "7" to "7", "8" to "8", "9" to "9", "10" to "10", "11" to "11", "12" to "12", "13" to "13")
                 }
                 WirelessDropdownField(
-                    label = "Wireless Channel",
+                    label = t("Wireless Channel"),
                     selectedValue = channelOptions.firstOrNull { it.second == config.channel }?.first ?: "Auto",
                     options = channelOptions.map { it.first },
                     onSelect = { selectedName ->
@@ -756,7 +758,7 @@ fun GeneralSettingsForm(
                     listOf("Below" to "0", "Above" to "1")
                 }
                 WirelessDropdownField(
-                    label = "Extension Channel",
+                    label = t("Extension Channel"),
                     selectedValue = extOptions.firstOrNull { it.second == config.extChannel }?.first ?: "Below",
                     options = extOptions.map { it.first },
                     onSelect = { selectedName ->
@@ -780,7 +782,7 @@ fun GeneralSettingsForm(
                     )
                 }
                 WirelessDropdownField(
-                    label = "Fixed TX Rate Link Mode",
+                    label = t("Fixed TX Rate Link Mode"),
                     selectedValue = mcsOptions.firstOrNull { it.second == config.mcsMode }?.first ?: "No (*)",
                     options = mcsOptions.map { it.first },
                     onSelect = { selectedName ->
@@ -831,7 +833,7 @@ fun GeneralSettingsForm(
                     OutlinedTextField(
                         value = config.wpaPsk,
                         onValueChange = { onConfigChange(config.copy(wpaPsk = it)) },
-                        label = { Text("WPA Pre-Shared Key") },
+                        label = { Text(t("WPA Pre-Shared Key")) },
                         isError = wpaPskError != null,
                         supportingText = wpaPskError?.let { { Text(it, color = Color.Red) } },
                         modifier = Modifier.fillMaxWidth(),
@@ -1076,7 +1078,7 @@ fun GuestSettingsForm(
                     )
                 }
                 WirelessDropdownField(
-                    label = "Fixed TX Rate Link Mode",
+                    label = t("Fixed TX Rate Link Mode"),
                     selectedValue = guestMcsOptions.firstOrNull { it.second == config.guestMcsMode }?.first ?: "No (*)",
                     options = guestMcsOptions.map { it.first },
                     onSelect = { selectedName ->
@@ -1138,7 +1140,7 @@ fun GuestSettingsForm(
                     OutlinedTextField(
                         value = config.guestWpaPsk,
                         onValueChange = { onConfigChange(config.copy(guestWpaPsk = it)) },
-                        label = { Text("WPA Pre-Shared Key") },
+                        label = { Text(t("WPA Pre-Shared Key")) },
                         isError = wpaPskError != null,
                         supportingText = wpaPskError?.let { { Text(it, color = Color.Red) } },
                         modifier = Modifier.fillMaxWidth(),
@@ -1731,7 +1733,7 @@ fun RadiusSettingsForm(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("RADIUS Settings", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+            Text(t("RADIUS Settings"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
 
             OutlinedTextField(
                 value = config.radiusIp,
@@ -1780,16 +1782,16 @@ fun MacFilterSettingsForm(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Wireless MAC Filter", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+            Text(t("Wireless MAC Filter"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
 
             WirelessDropdownField(
                 label = "MAC Access Control Mode",
                 selectedValue = when (config.macFilterMode) {
                     "accept" -> "Accept"
                     "reject" -> "Reject"
-                    else -> "Disabled"
+                    else -> t("Disabled")
                 },
-                options = listOf("Disabled", "Accept", "Reject"),
+                options = listOf(t("Disabled"), "Accept", "Reject"),
                 onSelect = { selected ->
                     val mode = when (selected) {
                         "Accept" -> "accept"

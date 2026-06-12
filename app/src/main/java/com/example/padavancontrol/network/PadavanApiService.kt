@@ -34,6 +34,15 @@ interface PadavanApiService {
     @GET("status_lanlink.asp")
     suspend fun getLanLinkStatus(): Response<String>
 
+    @GET("status_eth_mib.asp")
+    suspend fun getEthMibStatus(): Response<String>
+
+    @GET("Main_WStatus2g_Content.asp")
+    suspend fun getWirelessStatus2g(): Response<String>
+
+    @GET("Main_WStatus_Content.asp")
+    suspend fun getWirelessStatus5g(): Response<String>
+
     @GET("log_content.asp")
     suspend fun getSystemLogs(): Response<String>
 
@@ -51,7 +60,7 @@ interface PadavanApiService {
     @POST("apply.cgi")
     suspend fun commitFlash(
         @Field("action_mode") actionMode: String = " CommitFlash ",
-        @Field("nvram_action") nvramAction: String = "commit_nvram"
+        @Field("nvram_action") nvramAction: String
     ): Response<String>
 
     @FormUrlEncoded

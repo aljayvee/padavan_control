@@ -1,7 +1,10 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -88,7 +92,7 @@ fun TrafficScreen(
     var dropdownExpanded by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
-    val selectedDisplayName = INTERFACE_MAPPING[uiState.selectedInterface] ?: uiState.selectedInterface
+    val selectedDisplayName = t(INTERFACE_MAPPING[uiState.selectedInterface] ?: uiState.selectedInterface)
 
     Scaffold(
         topBar = {
@@ -102,7 +106,7 @@ fun TrafficScreen(
                         )
                     }
                 },
-                title = { Text("Traffic Monitor", fontWeight = FontWeight.Bold) },
+                title = { Text(t("Traffic Monitor"), fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
@@ -129,7 +133,7 @@ fun TrafficScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Interface Selection", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(t("Interface Selection"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(selectedDisplayName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         }
@@ -147,7 +151,7 @@ fun TrafficScreen(
                     modifier = Modifier.fillMaxWidth(0.9f)
                 ) {
                     uiState.availableInterfaces.forEach { key ->
-                        val displayName = INTERFACE_MAPPING[key] ?: key
+                        val displayName = t(INTERFACE_MAPPING[key] ?: key)
                         DropdownMenuItem(
                             text = { Text(displayName, fontWeight = if (key == uiState.selectedInterface) FontWeight.Bold else FontWeight.Normal) },
                             onClick = {
@@ -161,20 +165,55 @@ fun TrafficScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Error Alert Banner
+            uiState.errorMessage?.let { errorText ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.5.dp, Color(0xFFE74C3C), RoundedCornerShape(12.dp)),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFE74C3C).copy(alpha = 0.08f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Connection Error",
+                            tint = Color(0xFFE74C3C),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = errorText,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             // Real-time speed cards
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 SpeedMetricCard(
-                    title = "Download Speed",
+                    title = t("Download Speed"),
                     speedText = formatSpeedFromMbps(uiState.currentDownloadSpeed),
                     color = TrafficDownlinkColor,
                     modifier = Modifier.weight(1f)
                 )
 
                 SpeedMetricCard(
-                    title = "Upload Speed",
+                    title = t("Upload Speed"),
                     speedText = formatSpeedFromMbps(uiState.currentUploadSpeed),
                     color = TrafficUplinkColor,
                     modifier = Modifier.weight(1f)
@@ -197,7 +236,7 @@ fun TrafficScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "Real-Time Bandwidth Activity",
+                        text = t("Real-Time Bandwidth Activity"),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -224,7 +263,7 @@ fun TrafficScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Real-Time Statistics",
+                        text = t("Real-Time Statistics"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -246,11 +285,11 @@ fun TrafficScreen(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Direction", modifier = Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Current", modifier = Modifier.weight(1.3f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
-                        Text("Average", modifier = Modifier.weight(1.3f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
-                        Text("Peak", modifier = Modifier.weight(1.3f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
-                        Text("Total", modifier = Modifier.weight(1.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
+                        Text(t("Direction"), modifier = Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(t("Current"), modifier = Modifier.weight(1.3f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
+                        Text(t("Average"), modifier = Modifier.weight(1.3f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
+                        Text(t("Peak"), modifier = Modifier.weight(1.3f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
+                        Text(t("Total"), modifier = Modifier.weight(1.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
                     }
 
                     Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
@@ -268,7 +307,7 @@ fun TrafficScreen(
                                     .background(TrafficDownlinkColor, shape = RoundedCornerShape(2.dp))
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Downlink", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text(t("Downlink"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Text(formatSpeedFromMbps(rxCurrent), modifier = Modifier.weight(1.3f), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End)
                         Text(formatSpeedFromMbps(rxAverage), modifier = Modifier.weight(1.3f), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End)
@@ -291,7 +330,7 @@ fun TrafficScreen(
                                     .background(TrafficUplinkColor, shape = RoundedCornerShape(2.dp))
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Uplink", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text(t("Uplink"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Text(formatSpeedFromMbps(txCurrent), modifier = Modifier.weight(1.3f), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End)
                         Text(formatSpeedFromMbps(txAverage), modifier = Modifier.weight(1.3f), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End)

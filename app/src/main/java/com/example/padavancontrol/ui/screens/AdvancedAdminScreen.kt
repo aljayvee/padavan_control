@@ -1847,24 +1847,18 @@ fun AdvancedAdminScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            val desc = when (uiState.config.btnWpsShort) {
-                                                "0" -> "Disabled"
-                                                "1" -> "Toggle LED status"
-                                                "2" -> "Toggle Wi-Fi radios"
-                                                "3" -> "Run Ez-Buttons Script"
-                                                "4" -> "WPS Pairing"
-                                                else -> "Disabled"
-                                            }
+                                            val desc = getWpsShortButtonDesc(uiState.config.btnWpsShort)
                                             Text(desc, color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
-                                        DropdownMenu(expanded = wpsShortExpanded, onDismissRequest = { wpsShortExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsShort = "0")); wpsShortExpanded = false })
-                                            DropdownMenuItem(text = { Text("Toggle LED status") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsShort = "1")); wpsShortExpanded = false })
-                                            DropdownMenuItem(text = { Text("Toggle Wi-Fi radios") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsShort = "2")); wpsShortExpanded = false })
-                                            DropdownMenuItem(text = { Text("Run Ez-Buttons Script") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsShort = "3")); wpsShortExpanded = false })
-                                            DropdownMenuItem(text = { Text("WPS Pairing") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsShort = "4")); wpsShortExpanded = false })
-                                        }
+                                        val shortOptions = listOf("0", "1", "2", "3", "4", "11", "12", "13", "5", "21", "22", "10", "6", "7", "8", "9")
+                                        WpsDropdownMenuItems(
+                                            expanded = wpsShortExpanded,
+                                            options = shortOptions,
+                                            descFunc = ::getWpsShortButtonDesc,
+                                            onDismiss = { wpsShortExpanded = false },
+                                            onSelect = { viewModel.updateConfig(uiState.config.copy(btnWpsShort = it)) }
+                                        )
                                     }
 
                                     // Long press dropdown
@@ -1879,24 +1873,18 @@ fun AdvancedAdminScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            val desc = when (uiState.config.btnWpsLong) {
-                                                "0" -> "Disabled"
-                                                "1" -> "Toggle LED status"
-                                                "2" -> "Toggle Wi-Fi radios"
-                                                "3" -> "Run Ez-Buttons Script"
-                                                "4" -> "WPS Pairing"
-                                                else -> "Disabled"
-                                            }
+                                            val desc = getWpsLongButtonDesc(uiState.config.btnWpsLong)
                                             Text(desc, color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
-                                        DropdownMenu(expanded = wpsLongExpanded, onDismissRequest = { wpsLongExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsLong = "0")); wpsLongExpanded = false })
-                                            DropdownMenuItem(text = { Text("Toggle LED status") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsLong = "1")); wpsLongExpanded = false })
-                                            DropdownMenuItem(text = { Text("Toggle Wi-Fi radios") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsLong = "2")); wpsLongExpanded = false })
-                                            DropdownMenuItem(text = { Text("Run Ez-Buttons Script") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsLong = "3")); wpsLongExpanded = false })
-                                            DropdownMenuItem(text = { Text("WPS Pairing") }, onClick = { viewModel.updateConfig(uiState.config.copy(btnWpsLong = "4")); wpsLongExpanded = false })
-                                        }
+                                        val longOptions = listOf("0", "1", "2", "3", "12", "13", "14", "4", "21", "22", "11", "5", "6", "9", "7", "8", "10", "15")
+                                        WpsDropdownMenuItems(
+                                            expanded = wpsLongExpanded,
+                                            options = longOptions,
+                                            descFunc = ::getWpsLongButtonDesc,
+                                            onDismiss = { wpsLongExpanded = false },
+                                            onSelect = { viewModel.updateConfig(uiState.config.copy(btnWpsLong = it)) }
+                                        )
                                     }
                                 }
                             }
@@ -1944,18 +1932,20 @@ fun AdvancedAdminScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 val desc = when (uiState.config.ledInternet) {
-                                                    "0" -> "Link/Act (Normal status)"
-                                                    "1" -> "Power status (Constant on)"
-                                                    "2" -> "Always off"
-                                                    else -> "Link/Act (0)"
+                                                    "0" -> "Disable"
+                                                    "1" -> "Ethernet link WAN"
+                                                    "2" -> "Connection to ISP (*)"
+                                                    "3" -> "Internet detected"
+                                                    else -> "Disable"
                                                 }
                                                 Text(desc, color = Color.Black, fontSize = 14.sp)
                                                 Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                             }
                                             DropdownMenu(expanded = ledInternetExpanded, onDismissRequest = { ledInternetExpanded = false }) {
-                                                DropdownMenuItem(text = { Text("Link/Act (Normal status)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledInternet = "0")); ledInternetExpanded = false })
-                                                DropdownMenuItem(text = { Text("Power status (Constant on)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledInternet = "1")); ledInternetExpanded = false })
-                                                DropdownMenuItem(text = { Text("Always off") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledInternet = "2")); ledInternetExpanded = false })
+                                                DropdownMenuItem(text = { Text("Disable") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledInternet = "0")); ledInternetExpanded = false })
+                                                DropdownMenuItem(text = { Text("Ethernet link WAN") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledInternet = "1")); ledInternetExpanded = false })
+                                                DropdownMenuItem(text = { Text("Connection to ISP (*)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledInternet = "2")); ledInternetExpanded = false })
+                                                DropdownMenuItem(text = { Text("Internet detected") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledInternet = "3")); ledInternetExpanded = false })
                                             }
                                         }
 
@@ -1972,18 +1962,20 @@ fun AdvancedAdminScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 val desc = when (uiState.config.ledUsb) {
-                                                    "0" -> "Link/Act (Normal status)"
-                                                    "1" -> "Mount status (Constant on)"
-                                                    "2" -> "Always off"
-                                                    else -> "Link/Act (0)"
+                                                    "0" -> "Disable"
+                                                    "1" -> "USB device ready (*)"
+                                                    "2" -> "USB mount Volume"
+                                                    "3" -> "USB mount Volume, activity"
+                                                    else -> "Disable"
                                                 }
                                                 Text(desc, color = Color.Black, fontSize = 14.sp)
                                                 Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                             }
                                             DropdownMenu(expanded = ledUsbExpanded, onDismissRequest = { ledUsbExpanded = false }) {
-                                                DropdownMenuItem(text = { Text("Link/Act (Normal status)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledUsb = "0")); ledUsbExpanded = false })
-                                                DropdownMenuItem(text = { Text("Mount status (Constant on)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledUsb = "1")); ledUsbExpanded = false })
-                                                DropdownMenuItem(text = { Text("Always off") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledUsb = "2")); ledUsbExpanded = false })
+                                                DropdownMenuItem(text = { Text("Disable") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledUsb = "0")); ledUsbExpanded = false })
+                                                DropdownMenuItem(text = { Text("USB device ready (*)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledUsb = "1")); ledUsbExpanded = false })
+                                                DropdownMenuItem(text = { Text("USB mount Volume") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledUsb = "2")); ledUsbExpanded = false })
+                                                DropdownMenuItem(text = { Text("USB mount Volume, activity") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledUsb = "3")); ledUsbExpanded = false })
                                             }
                                         }
 
@@ -2000,18 +1992,16 @@ fun AdvancedAdminScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 val desc = when (uiState.config.ledWifi) {
-                                                    "0" -> "Link/Act (Normal status)"
-                                                    "1" -> "Radio status (Constant on)"
-                                                    "2" -> "Always off"
-                                                    else -> "Link/Act (0)"
+                                                    "0" -> "Disable"
+                                                    "1" -> "Wireless radio ON, activity (*)"
+                                                    else -> "Disable"
                                                 }
                                                 Text(desc, color = Color.Black, fontSize = 14.sp)
                                                 Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                             }
                                             DropdownMenu(expanded = ledWifiExpanded, onDismissRequest = { ledWifiExpanded = false }) {
-                                                DropdownMenuItem(text = { Text("Link/Act (Normal status)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledWifi = "0")); ledWifiExpanded = false })
-                                                DropdownMenuItem(text = { Text("Radio status (Constant on)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledWifi = "1")); ledWifiExpanded = false })
-                                                DropdownMenuItem(text = { Text("Always off") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledWifi = "2")); ledWifiExpanded = false })
+                                                DropdownMenuItem(text = { Text("Disable") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledWifi = "0")); ledWifiExpanded = false })
+                                                DropdownMenuItem(text = { Text("Wireless radio ON, activity (*)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledWifi = "1")); ledWifiExpanded = false })
                                             }
                                         }
 
@@ -2028,23 +2018,21 @@ fun AdvancedAdminScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 val desc = when (uiState.config.ledPower) {
-                                                    "0" -> "Power status (Normal)"
-                                                    "1" -> "Heartbeat (Blinking)"
-                                                    "2" -> "Always off"
-                                                    else -> "Normal (0)"
+                                                    "0" -> "Disable, buttons events"
+                                                    "1" -> "Enable, buttons events (*)"
+                                                    else -> "Disable, buttons events"
                                                 }
                                                 Text(desc, color = Color.Black, fontSize = 14.sp)
                                                 Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                             }
                                             DropdownMenu(expanded = ledPowerExpanded, onDismissRequest = { ledPowerExpanded = false }) {
-                                                DropdownMenuItem(text = { Text("Power status (Normal)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledPower = "0")); ledPowerExpanded = false })
-                                                DropdownMenuItem(text = { Text("Heartbeat (Blinking)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledPower = "1")); ledPowerExpanded = false })
-                                                DropdownMenuItem(text = { Text("Always off") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledPower = "2")); ledPowerExpanded = false })
+                                                DropdownMenuItem(text = { Text("Disable, buttons events") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledPower = "0")); ledPowerExpanded = false })
+                                                DropdownMenuItem(text = { Text("Enable, buttons events (*)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledPower = "1")); ledPowerExpanded = false })
                                             }
                                         }
 
                                         // Ethernet Ports LED
-                                        Text("Ethernet Ports Green LED", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
+                                        Text("Front LED Ethernet", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
                                         Box(modifier = Modifier.fillMaxWidth()) {
                                             Row(
                                                 modifier = Modifier
@@ -2056,18 +2044,20 @@ fun AdvancedAdminScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 val desc = when (uiState.config.ledEthernet) {
-                                                    "0" -> "Link/Act (Normal status)"
-                                                    "1" -> "Gigabit Link status speed"
-                                                    "2" -> "Always off"
-                                                    else -> "Link/Act (0)"
+                                                    "0" -> "Disable"
+                                                    "1" -> "Ethernet link WAN (*)"
+                                                    "2" -> "Ethernet link LAN"
+                                                    "3" -> "Ethernet link LAN/WAN"
+                                                    else -> "Disable"
                                                 }
                                                 Text(desc, color = Color.Black, fontSize = 14.sp)
                                                 Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                             }
                                             DropdownMenu(expanded = ledEthernetExpanded, onDismissRequest = { ledEthernetExpanded = false }) {
-                                                DropdownMenuItem(text = { Text("Link/Act (Normal status)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledEthernet = "0")); ledEthernetExpanded = false })
-                                                DropdownMenuItem(text = { Text("Gigabit Link status speed") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledEthernet = "1")); ledEthernetExpanded = false })
-                                                DropdownMenuItem(text = { Text("Always off") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledEthernet = "2")); ledEthernetExpanded = false })
+                                                DropdownMenuItem(text = { Text("Disable") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledEthernet = "0")); ledEthernetExpanded = false })
+                                                DropdownMenuItem(text = { Text("Ethernet link WAN (*)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledEthernet = "1")); ledEthernetExpanded = false })
+                                                DropdownMenuItem(text = { Text("Ethernet link LAN") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledEthernet = "2")); ledEthernetExpanded = false })
+                                                DropdownMenuItem(text = { Text("Ethernet link LAN/WAN") }, onClick = { viewModel.updateConfig(uiState.config.copy(ledEthernet = "3")); ledEthernetExpanded = false })
                                             }
                                         }
                                     }
@@ -2195,5 +2185,73 @@ fun uriToMultipartBodyPartHelper(context: android.content.Context, uri: android.
     } catch (e: Exception) {
         e.printStackTrace()
         null
+    }
+}
+
+
+private fun getWpsShortButtonDesc(value: String): String {
+    return when (value) {
+        "0" -> "No action"
+        "1" -> "Toggle Wi-Fi Radio"
+        "2" -> "Toggle Wi-Fi 2.4GHz"
+        "3" -> "Toggle Wi-Fi 5GHz"
+        "4" -> "Toggle Wi-Fi (Both)"
+        "11" -> "Toggle Guest 2.4GHz"
+        "12" -> "Toggle Guest 5GHz"
+        "13" -> "Toggle Guest (Both)"
+        "5" -> "Eject All USBs"
+        "21" -> "Eject USB #1"
+        "22" -> "Eject USB #2"
+        "10" -> "Toggle Front LED"
+        "6" -> "Disconnect WAN"
+        "7" -> "Reconnect WAN"
+        "8" -> "Toggle WAN"
+        "9" -> "Run Custom Script"
+        else -> "No action"
+    }
+}
+
+private fun getWpsLongButtonDesc(value: String): String {
+    return when (value) {
+        "0" -> "No action"
+        "1" -> "Toggle Wi-Fi 2.4GHz"
+        "2" -> "Toggle Wi-Fi 5GHz"
+        "3" -> "Toggle Wi-Fi (Both)"
+        "12" -> "Toggle Guest 2.4GHz"
+        "13" -> "Toggle Guest 5GHz"
+        "14" -> "Toggle Guest (Both)"
+        "4" -> "Eject All USBs"
+        "21" -> "Eject USB #1"
+        "22" -> "Eject USB #2"
+        "11" -> "Toggle Front LED"
+        "5" -> "Disconnect WAN"
+        "6" -> "Reconnect WAN"
+        "9" -> "Toggle WAN"
+        "7" -> "Router Reboot"
+        "8" -> "Router Shutdown"
+        "10" -> "Run Custom Script"
+        "15" -> "Reset Settings"
+        else -> "No action"
+    }
+}
+
+@Composable
+fun WpsDropdownMenuItems(
+    expanded: Boolean,
+    options: List<String>,
+    descFunc: (String) -> String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        options.forEach { opt ->
+            DropdownMenuItem(
+                text = { Text(descFunc(opt)) },
+                onClick = {
+                    onSelect(opt)
+                    onDismiss()
+                }
+            )
+        }
     }
 }

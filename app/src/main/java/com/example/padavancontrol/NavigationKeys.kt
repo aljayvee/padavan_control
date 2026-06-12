@@ -14,6 +14,8 @@ data object Traffic : NavKey
 @Serializable
 data object Settings : NavKey
 @Serializable
+data object HardwareInfo : NavKey
+@Serializable
 data object ShellConsole : NavKey
 @Serializable
 data object LogViewer : NavKey
@@ -125,3 +127,7 @@ data object AdminButtonsLed : NavKey
 data object CustomScripts : NavKey
 @Serializable
 data object CustomDetector : NavKey
+
+// VPN
+@Serializable
+data object AdvancedVpn : NavKey

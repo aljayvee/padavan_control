@@ -12,10 +12,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+import kotlinx.coroutines.isActive
+
 data class DevicesUiState(
     val clients: List<LanClient> = emptyList(),
     val isLoading: Boolean = true,
-    val searchQuery: String = ""
+    val searchQuery: String = "",
+    val errorMessage: String? = null
 )
 
 class DevicesViewModel(
@@ -34,13 +37,13 @@ class DevicesViewModel(
     private fun startPolling() {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
-            while (true) {
+            while (isActive) {
                 repository.getLanClients().collect { result ->
                     result.onSuccess { list ->
-                        _uiState.update { it.copy(clients = list, isLoading = false) }
+                        _uiState.update { it.copy(clients = list, isLoading = false, errorMessage = null) }
                     }
                     result.onFailure { error ->
-                        _uiState.update { it.copy(isLoading = false) }
+                        _uiState.update { it.copy(isLoading = false, errorMessage = error.message ?: "Failed to fetch clients") }
                     }
                 }
                 delay(5000)

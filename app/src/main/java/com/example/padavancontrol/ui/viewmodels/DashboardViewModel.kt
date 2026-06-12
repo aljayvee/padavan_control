@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+import kotlinx.coroutines.isActive
+
 data class DashboardUiState(
     val systemStatus: SystemStatus? = null,
     val wanStatus: WanStatus? = null,
@@ -27,7 +29,8 @@ data class DashboardUiState(
     val wifi2GEnabled: Boolean = true,
     val wifi5GEnabled: Boolean = true,
     val routerIp: String = "",
-    val hardwareWarning: String? = null
+    val hardwareWarning: String? = null,
+    val errorMessage: String? = null
 )
 
 sealed interface DashboardEvent {
@@ -72,7 +75,7 @@ class DashboardViewModel(
     private fun startPolling() {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
-            while (true) {
+            while (isActive) {
                 if (isPollingActive) {
                     fetchDashboardData(showLoadingIndicator = false)
                 }
@@ -81,38 +84,55 @@ class DashboardViewModel(
         }
     }
 
-    private suspend fun fetchDashboardData(showLoadingIndicator: Boolean) {
+    private suspend fun fetchDashboardData(showLoadingIndicator: Boolean) = kotlinx.coroutines.coroutineScope {
         if (showLoadingIndicator) {
             _uiState.update { it.copy(isRefreshing = true) }
         }
 
-        val systemJob = viewModelScope.launch {
+        var localError: String? = null
+
+        val systemJob = launch {
             repository.getSystemStatus().collect { result ->
                 result.onSuccess { status ->
                     _uiState.update { it.copy(systemStatus = status) }
                 }
+                result.onFailure { error ->
+                    localError = error.message ?: "Failed to fetch system status"
+                    _uiState.update { it.copy(systemStatus = null) }
+                }
             }
         }
 
-        val wanJob = viewModelScope.launch {
+        val wanJob = launch {
             repository.getWanStatus().collect { result ->
                 result.onSuccess { status ->
                     _uiState.update { it.copy(wanStatus = status) }
                 }
-            }
-        }
-
-        val lanJob = viewModelScope.launch {
-            repository.getLanLinks().collect { result ->
-                result.onSuccess { links ->
-                    _uiState.update { it.copy(lanLinks = links) }
+                result.onFailure { error ->
+                    localError = error.message ?: "Failed to fetch WAN status"
+                    _uiState.update { it.copy(wanStatus = null) }
                 }
             }
         }
 
+        val lanJob = launch {
+            repository.getLanLinks().collect { result ->
+                result.onSuccess { links ->
+                    _uiState.update { it.copy(lanLinks = links) }
+                }
+                result.onFailure { error ->
+                    localError = error.message ?: "Failed to fetch LAN link status"
+                    _uiState.update { it.copy(lanLinks = emptyList()) }
+                }
+            }
+        }
+
+        // Wait for all to complete within the current scope
         systemJob.join()
         wanJob.join()
         lanJob.join()
+
+        _uiState.update { it.copy(errorMessage = localError) }
 
         if (showLoadingIndicator) {
             _uiState.update { it.copy(isRefreshing = false) }

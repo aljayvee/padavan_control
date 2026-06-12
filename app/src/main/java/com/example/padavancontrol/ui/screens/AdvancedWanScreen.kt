@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -76,7 +78,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedWanScreen(
-    section: String, // "Connection", "IPv6", "PortForward", "DMZ", "DDNS"
+    section: String, // t("Connection"), "IPv6", "PortForward", "DMZ", "DDNS"
     viewModel: AdvancedWanViewModel,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -86,7 +88,7 @@ fun AdvancedWanScreen(
 
     val pagePath = remember(section) {
         when (section) {
-            "Connection" -> "Advanced_WAN_Content.asp"
+            t("Connection") -> "Advanced_WAN_Content.asp"
             "IPv6" -> "Advanced_IPv6_Content.asp"
             "PortForward" -> "Advanced_VirtualServer_Content.asp"
             "DMZ" -> "Advanced_Exposed_Content.asp"
@@ -97,11 +99,11 @@ fun AdvancedWanScreen(
 
     val title = remember(section) {
         when (section) {
-            "Connection" -> "Internet Connection"
+            t("Connection") -> t("Internet Connection")
             "IPv6" -> "IPv6 Protocol Stack"
-            "PortForward" -> "Port Forwarding (NAT)"
-            "DMZ" -> "DMZ Host Settings"
-            "DDNS" -> "Dynamic DNS (DDNS)"
+            "PortForward" -> t("Port Forwarding (NAT)")
+            "DMZ" -> t("DMZ Host Settings")
+            "DDNS" -> t("Dynamic DNS (DDNS)")
             else -> "WAN & Internet Settings"
         }
     }
@@ -176,7 +178,7 @@ fun AdvancedWanScreen(
         ddnsHostError = null
 
         val config = uiState.config
-        if (section == "Connection") {
+        if (section == t("Connection")) {
             if (!config.wanDnsEnable) {
                 if (config.wanDns1.isNotEmpty() && !isValidIp(config.wanDns1)) {
                     dns1Error = "Invalid DNS IP address format"
@@ -286,7 +288,7 @@ fun deletePortForward(index: Int) {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -294,7 +296,7 @@ fun deletePortForward(index: Int) {
                 actions = {
                     if (!uiState.isLoading && !uiState.isSaving) {
                         IconButton(onClick = { viewModel.loadConfig(pagePath, forceRefresh = true) }) {
-                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Reload", tint = ArcherTeal)
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = t("Reload"), tint = ArcherTeal)
                         }
                     }
                 },
@@ -419,7 +421,7 @@ fun deletePortForward(index: Int) {
 
                     // Form Sections
                     when (section) {
-                        "Connection" -> {
+                        t("Connection") -> {
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -686,7 +688,7 @@ fun deletePortForward(index: Int) {
                                     OutlinedTextField(
                                         value = uiState.config.wanHwaddr,
                                         onValueChange = { viewModel.updateConfig(uiState.config.copy(wanHwaddr = it)) },
-                                        label = { Text("MAC Address") },
+                                        label = { Text(t("MAC Address")) },
                                         placeholder = { Text("e.g. AA:BB:CC:DD:EE:FF") },
                                         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                                     )
@@ -721,7 +723,7 @@ fun deletePortForward(index: Int) {
                                     Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                                         OutlinedTextField(
                                             value = when (uiState.config.wanStbPort) {
-                                                "0" -> "No"
+                                                "0" -> t("No")
                                                 "1" -> "LAN1"
                                                 "2" -> "LAN2"
                                                 "3" -> "LAN3"
@@ -746,7 +748,7 @@ fun deletePortForward(index: Int) {
                                             expanded = stbPortDropdownExpanded,
                                             onDismissRequest = { stbPortDropdownExpanded = false }
                                         ) {
-                                            DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(wanStbPort = "0")); stbPortDropdownExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(wanStbPort = "0")); stbPortDropdownExpanded = false })
                                             DropdownMenuItem(text = { Text("LAN1") }, onClick = { viewModel.updateConfig(uiState.config.copy(wanStbPort = "1")); stbPortDropdownExpanded = false })
                                             DropdownMenuItem(text = { Text("LAN2") }, onClick = { viewModel.updateConfig(uiState.config.copy(wanStbPort = "2")); stbPortDropdownExpanded = false })
                                             DropdownMenuItem(text = { Text("LAN3") }, onClick = { viewModel.updateConfig(uiState.config.copy(wanStbPort = "3")); stbPortDropdownExpanded = false })
@@ -761,7 +763,7 @@ fun deletePortForward(index: Int) {
                                     Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                                         OutlinedTextField(
                                             value = when (uiState.config.wanStbIso) {
-                                                "0" -> "No"
+                                                "0" -> t("No")
                                                 "1" -> "STB Port Isolated from WAN"
                                                 "2" -> "STB Port Isolated from WAN & LAN"
                                                 else -> uiState.config.wanStbIso
@@ -781,7 +783,7 @@ fun deletePortForward(index: Int) {
                                             expanded = stbIsoDropdownExpanded,
                                             onDismissRequest = { stbIsoDropdownExpanded = false }
                                         ) {
-                                            DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(wanStbIso = "0")); stbIsoDropdownExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(wanStbIso = "0")); stbIsoDropdownExpanded = false })
                                             DropdownMenuItem(text = { Text("STB Port Isolated from WAN") }, onClick = { viewModel.updateConfig(uiState.config.copy(wanStbIso = "1")); stbIsoDropdownExpanded = false })
                                             DropdownMenuItem(text = { Text("STB Port Isolated from WAN & LAN") }, onClick = { viewModel.updateConfig(uiState.config.copy(wanStbIso = "2")); stbIsoDropdownExpanded = false })
                                         }
@@ -857,7 +859,7 @@ fun deletePortForward(index: Int) {
                                     Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                                         OutlinedTextField(
                                             value = when (uiState.config.ipv6Proto) {
-                                                "" -> "Disabled"
+                                                "" -> t("Disabled")
                                                 "static" -> "Native Static IPv6"
                                                 "dhcp6" -> "Native DHCPv6"
                                                 "6in4" -> "Tunnel 6in4"
@@ -880,7 +882,7 @@ fun deletePortForward(index: Int) {
                                             expanded = ipv6ProtoDropdownExpanded,
                                             onDismissRequest = { ipv6ProtoDropdownExpanded = false }
                                         ) {
-                                            DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6Proto = "")); ipv6ProtoDropdownExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Disabled")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6Proto = "")); ipv6ProtoDropdownExpanded = false })
                                             DropdownMenuItem(text = { Text("Native DHCPv6") }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6Proto = "dhcp6")); ipv6ProtoDropdownExpanded = false })
                                             DropdownMenuItem(text = { Text("Native Static IPv6") }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6Proto = "static")); ipv6ProtoDropdownExpanded = false })
                                             DropdownMenuItem(text = { Text("Tunnel 6to4") }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6Proto = "6to4")); ipv6ProtoDropdownExpanded = false })
@@ -998,7 +1000,7 @@ fun deletePortForward(index: Int) {
                                             Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                                                 OutlinedTextField(
                                                     value = when (uiState.config.ipv6LanDhcp) {
-                                                        "0" -> "No"
+                                                        "0" -> t("No")
                                                         "1" -> "Stateless (*)"
                                                         "2" -> "Stateful"
                                                         "3" -> "Stateless & Stateful"
@@ -1019,7 +1021,7 @@ fun deletePortForward(index: Int) {
                                                     expanded = ipv6LanDhcpDropdownExpanded,
                                                     onDismissRequest = { ipv6LanDhcpDropdownExpanded = false }
                                                 ) {
-                                                    DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6LanDhcp = "0")); ipv6LanDhcpDropdownExpanded = false })
+                                                    DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6LanDhcp = "0")); ipv6LanDhcpDropdownExpanded = false })
                                                     DropdownMenuItem(text = { Text("Stateless (*)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6LanDhcp = "1")); ipv6LanDhcpDropdownExpanded = false })
                                                     DropdownMenuItem(text = { Text("Stateful") }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6LanDhcp = "2")); ipv6LanDhcpDropdownExpanded = false })
                                                     DropdownMenuItem(text = { Text("Stateless & Stateful") }, onClick = { viewModel.updateConfig(uiState.config.copy(ipv6LanDhcp = "3")); ipv6LanDhcpDropdownExpanded = false })
@@ -1543,8 +1545,8 @@ fun deletePortForward(index: Int) {
                                         Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                                             OutlinedTextField(
                                                 value = when (uiState.config.ddnsSsl) {
-                                                    "0" -> "No"
-                                                    "1" -> "Yes (*)"
+                                                    "0" -> t("No")
+                                                    "1" -> t("Yes (*)")
                                                     else -> uiState.config.ddnsSsl
                                                 },
                                                 onValueChange = {},
@@ -1562,8 +1564,8 @@ fun deletePortForward(index: Int) {
                                                 expanded = ddnsSslDropdownExpanded,
                                                 onDismissRequest = { ddnsSslDropdownExpanded = false }
                                             ) {
-                                                DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsSsl = "0")); ddnsSslDropdownExpanded = false })
-                                                DropdownMenuItem(text = { Text("Yes (*)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsSsl = "1")); ddnsSslDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsSsl = "0")); ddnsSslDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("Yes (*)")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsSsl = "1")); ddnsSslDropdownExpanded = false })
                                             }
                                         }
 
@@ -1571,8 +1573,8 @@ fun deletePortForward(index: Int) {
                                         Box(modifier = Modifier.fillMaxWidth()) {
                                             OutlinedTextField(
                                                 value = when (uiState.config.ddnsWildcard) {
-                                                    "0" -> "No"
-                                                    "1" -> "Yes"
+                                                    "0" -> t("No")
+                                                    "1" -> t("Yes")
                                                     else -> uiState.config.ddnsWildcard
                                                 },
                                                 onValueChange = {},
@@ -1590,8 +1592,8 @@ fun deletePortForward(index: Int) {
                                                 expanded = ddnsWildcardDropdownExpanded,
                                                 onDismissRequest = { ddnsWildcardDropdownExpanded = false }
                                             ) {
-                                                DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsWildcard = "0")); ddnsWildcardDropdownExpanded = false })
-                                                DropdownMenuItem(text = { Text("Yes") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsWildcard = "1")); ddnsWildcardDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsWildcard = "0")); ddnsWildcardDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("Yes")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsWildcard = "1")); ddnsWildcardDropdownExpanded = false })
                                             }
                                         }
                                     }
@@ -1612,7 +1614,7 @@ fun deletePortForward(index: Int) {
 
                                         Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                                             OutlinedTextField(
-                                                value = if (uiState.config.ddns2Server.isEmpty()) "Disabled" else uiState.config.ddns2Server,
+                                                value = if (uiState.config.ddns2Server.isEmpty()) t("Disabled") else uiState.config.ddns2Server,
                                                 onValueChange = {},
                                                 readOnly = true,
                                                 label = { Text("DDNS Provider") },
@@ -1628,7 +1630,7 @@ fun deletePortForward(index: Int) {
                                                 expanded = ddns2ServerDropdownExpanded,
                                                 onDismissRequest = { ddns2ServerDropdownExpanded = false }
                                             ) {
-                                                DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Server = "")); ddns2ServerDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("Disabled")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Server = "")); ddns2ServerDropdownExpanded = false })
                                                 DropdownMenuItem(text = { Text("no-ip.com") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Server = "WWW.NO-IP.COM")); ddns2ServerDropdownExpanded = false })
                                                 DropdownMenuItem(text = { Text("dyndns.org") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Server = "WWW.DYNDNS.ORG")); ddns2ServerDropdownExpanded = false })
                                                 DropdownMenuItem(text = { Text("dnsomatic.com") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Server = "WWW.DNSOMATIC.COM")); ddns2ServerDropdownExpanded = false })
@@ -1662,8 +1664,8 @@ fun deletePortForward(index: Int) {
                                             Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                                                 OutlinedTextField(
                                                     value = when (uiState.config.ddns2Ssl) {
-                                                        "0" -> "No"
-                                                        "1" -> "Yes (*)"
+                                                        "0" -> t("No")
+                                                        "1" -> t("Yes (*)")
                                                         else -> uiState.config.ddns2Ssl
                                                     },
                                                     onValueChange = {},
@@ -1681,8 +1683,8 @@ fun deletePortForward(index: Int) {
                                                     expanded = ddns2SslDropdownExpanded,
                                                     onDismissRequest = { ddns2SslDropdownExpanded = false }
                                                 ) {
-                                                    DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Ssl = "0")); ddns2SslDropdownExpanded = false })
-                                                    DropdownMenuItem(text = { Text("Yes (*)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Ssl = "1")); ddns2SslDropdownExpanded = false })
+                                                    DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Ssl = "0")); ddns2SslDropdownExpanded = false })
+                                                    DropdownMenuItem(text = { Text(t("Yes (*)")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Ssl = "1")); ddns2SslDropdownExpanded = false })
                                                 }
                                             }
 
@@ -1690,8 +1692,8 @@ fun deletePortForward(index: Int) {
                                             Box(modifier = Modifier.fillMaxWidth()) {
                                                 OutlinedTextField(
                                                     value = when (uiState.config.ddns2Wildcard) {
-                                                        "0" -> "No"
-                                                        "1" -> "Yes"
+                                                        "0" -> t("No")
+                                                        "1" -> t("Yes")
                                                         else -> uiState.config.ddns2Wildcard
                                                     },
                                                     onValueChange = {},
@@ -1709,8 +1711,8 @@ fun deletePortForward(index: Int) {
                                                     expanded = ddns2WildcardDropdownExpanded,
                                                     onDismissRequest = { ddns2WildcardDropdownExpanded = false }
                                                 ) {
-                                                    DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Wildcard = "0")); ddns2WildcardDropdownExpanded = false })
-                                                    DropdownMenuItem(text = { Text("Yes") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Wildcard = "1")); ddns2WildcardDropdownExpanded = false })
+                                                    DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Wildcard = "0")); ddns2WildcardDropdownExpanded = false })
+                                                    DropdownMenuItem(text = { Text(t("Yes")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddns2Wildcard = "1")); ddns2WildcardDropdownExpanded = false })
                                                 }
                                             }
                                         }
@@ -1838,11 +1840,11 @@ fun deletePortForward(index: Int) {
                                                     "1" -> "1 hour"
                                                     "2" -> "2 hours"
                                                     "3" -> "3 hours"
-                                                    "6" -> "6 hours"
-                                                    "12" -> "12 hours"
-                                                    "24" -> "1 day (*)"
-                                                    "48" -> "2 days"
-                                                    "72" -> "3 days"
+                                                    "6" -> t("6 hours")
+                                                    "12" -> t("12 hours")
+                                                    "24" -> t("1 day (*)")
+                                                    "48" -> t("2 days")
+                                                    "72" -> t("3 days")
                                                     else -> "${uiState.config.ddnsPeriod} hours"
                                                 },
                                                 onValueChange = {},
@@ -1864,11 +1866,11 @@ fun deletePortForward(index: Int) {
                                                 DropdownMenuItem(text = { Text("1 hour") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "1")); ddnsPeriodDropdownExpanded = false })
                                                 DropdownMenuItem(text = { Text("2 hours") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "2")); ddnsPeriodDropdownExpanded = false })
                                                 DropdownMenuItem(text = { Text("3 hours") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "3")); ddnsPeriodDropdownExpanded = false })
-                                                DropdownMenuItem(text = { Text("6 hours") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "6")); ddnsPeriodDropdownExpanded = false })
-                                                DropdownMenuItem(text = { Text("12 hours") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "12")); ddnsPeriodDropdownExpanded = false })
-                                                DropdownMenuItem(text = { Text("1 day (*)") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "24")); ddnsPeriodDropdownExpanded = false })
-                                                DropdownMenuItem(text = { Text("2 days") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "48")); ddnsPeriodDropdownExpanded = false })
-                                                DropdownMenuItem(text = { Text("3 days") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "72")); ddnsPeriodDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("6 hours")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "6")); ddnsPeriodDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("12 hours")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "12")); ddnsPeriodDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("1 day (*)")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "24")); ddnsPeriodDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("2 days")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "48")); ddnsPeriodDropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("3 days")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsPeriod = "72")); ddnsPeriodDropdownExpanded = false })
                                             }
                                         }
 
@@ -1907,8 +1909,8 @@ fun deletePortForward(index: Int) {
                                         Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                                             OutlinedTextField(
                                                 value = when (uiState.config.ddnsIpv6) {
-                                                    "0" -> "No"
-                                                    "1" -> "Yes"
+                                                    "0" -> t("No")
+                                                    "1" -> t("Yes")
                                                     else -> uiState.config.ddnsIpv6
                                                 },
                                                 onValueChange = {},
@@ -1926,8 +1928,8 @@ fun deletePortForward(index: Int) {
                                                 expanded = ddnsIpv6DropdownExpanded,
                                                 onDismissRequest = { ddnsIpv6DropdownExpanded = false }
                                             ) {
-                                                DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsIpv6 = "0")); ddnsIpv6DropdownExpanded = false })
-                                                DropdownMenuItem(text = { Text("Yes") }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsIpv6 = "1")); ddnsIpv6DropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsIpv6 = "0")); ddnsIpv6DropdownExpanded = false })
+                                                DropdownMenuItem(text = { Text(t("Yes")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ddnsIpv6 = "1")); ddnsIpv6DropdownExpanded = false })
                                             }
                                         }
 
@@ -1980,9 +1982,9 @@ fun deletePortForward(index: Int) {
                                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                             } else {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(imageVector = Icons.Default.Check, contentDescription = "Save")
+                                    Icon(imageVector = Icons.Default.Check, contentDescription = t("Save"))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Apply Settings", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text(t("Apply Settings"), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }

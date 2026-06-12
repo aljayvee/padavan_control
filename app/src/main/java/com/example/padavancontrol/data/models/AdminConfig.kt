@@ -44,8 +44,6 @@ data class AdminConfig(
     val opMode: String = "1", // 1: Router, 2: AP, 3: WDS / Bridge
     
     // 4. Hardware buttons / LED (Advanced_Buttons_LED_Content.asp)
-    val btnWpsMode: String = "0", // 0: WPS, 1: Toggle Radio, 2: Toggle LED
-    val ledPowerMode: String = "0", // 0: Normal, 1: Always Off
     val btnWpsShort: String = "0",
     val btnWpsLong: String = "0",
     val ledEnable: Boolean = true,

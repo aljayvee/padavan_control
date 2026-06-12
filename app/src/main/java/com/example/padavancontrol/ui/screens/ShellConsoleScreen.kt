@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,12 +73,12 @@ fun ShellConsoleScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Developer Command Shell", fontWeight = FontWeight.Bold) },
+                title = { Text(t("Developer Command Shell"), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -127,7 +129,7 @@ fun ShellConsoleScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Executing remote diagnostic...",
+                                text = t("Executing remote diagnostic..."),
                                 color = Color(0xFF10B981),
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp
@@ -140,7 +142,7 @@ fun ShellConsoleScreen(
             // Shortcut Chips Area
             Column {
                 Text(
-                    text = "Quick Diagnostic Shortcuts",
+                    text = t("Quick Diagnostic Shortcuts"),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -178,7 +180,7 @@ fun ShellConsoleScreen(
                 OutlinedTextField(
                     value = uiState.commandInput,
                     onValueChange = { viewModel.updateCommandInput(it) },
-                    placeholder = { Text("Enter shell command...", fontSize = 14.sp) },
+                    placeholder = { Text(t("Enter shell command..."), fontSize = 14.sp) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp),
@@ -200,7 +202,7 @@ fun ShellConsoleScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = "Run",
+                        contentDescription = t("Run"),
                         tint = if (uiState.commandInput.trim().isNotEmpty() && !uiState.isExecuting) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

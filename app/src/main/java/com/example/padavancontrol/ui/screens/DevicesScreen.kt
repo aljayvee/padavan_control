@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.widget.Toast
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -8,6 +10,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +35,7 @@ import androidx.compose.material.icons.filled.NetworkWifi2Bar
 import androidx.compose.material.icons.filled.NetworkWifi3Bar
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -104,7 +108,7 @@ fun DevicesScreen(
                         )
                     }
                 },
-                title = { Text("Client Status", fontWeight = FontWeight.Bold) },
+                title = { Text(t("Client Status"), fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
@@ -120,7 +124,7 @@ fun DevicesScreen(
                 value = uiState.searchQuery,
                 onValueChange = { viewModel.updateSearchQuery(it) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                placeholder = { Text("Search by name, IP, or MAC...") },
+                placeholder = { Text(t("Search by name, IP, or MAC...")) },
                 leadingIcon = {
                     Icon(
                         Icons.Filled.Search,
@@ -138,13 +142,49 @@ fun DevicesScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Error Alert Banner
+            uiState.errorMessage?.let { errorText ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                        .border(1.5.dp, Color(0xFFE74C3C), RoundedCornerShape(12.dp)),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFE74C3C).copy(alpha = 0.08f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Connection Error",
+                            tint = Color(0xFFE74C3C),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = errorText,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             if (uiState.isLoading && uiState.clients.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = ArcherTeal)
                 }
             } else if (filteredClients.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No devices found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(t("No devices found"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
                 LazyColumn(
@@ -152,7 +192,7 @@ fun DevicesScreen(
                 ) {
                     if (wifi5GClients.isNotEmpty()) {
                         item {
-                            DeviceSectionHeader(title = "5 GHz Wireless Devices", count = wifi5GClients.size)
+                            DeviceSectionHeader(title = t("5 GHz Wireless Devices"), count = wifi5GClients.size)
                         }
                         items(wifi5GClients, key = { "${it.macAddress}_${it.ipAddress}_5G" }) { client ->
                             DeviceRowItem(
@@ -164,7 +204,7 @@ fun DevicesScreen(
 
                     if (wifi2GClients.isNotEmpty()) {
                         item {
-                            DeviceSectionHeader(title = "2.4 GHz Wireless Devices", count = wifi2GClients.size)
+                            DeviceSectionHeader(title = t("2.4 GHz Wireless Devices"), count = wifi2GClients.size)
                         }
                         items(wifi2GClients, key = { "${it.macAddress}_${it.ipAddress}_2G" }) { client ->
                             DeviceRowItem(
@@ -176,7 +216,7 @@ fun DevicesScreen(
 
                     if (wiredClients.isNotEmpty()) {
                         item {
-                            DeviceSectionHeader(title = "LAN Cables Connected", count = wiredClients.size)
+                            DeviceSectionHeader(title = t("LAN Cables Connected"), count = wiredClients.size)
                         }
                         items(wiredClients, key = { "${it.macAddress}_${it.ipAddress}_Wired" }) { client ->
                             DeviceRowItem(
@@ -214,7 +254,7 @@ fun DevicesScreen(
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        text = client.hostname.ifEmpty { "Device Details" },
+                        text = client.hostname.ifEmpty { t("Device Details") },
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -231,7 +271,7 @@ fun DevicesScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Status", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(t("Status"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Box(
                             modifier = Modifier
                                 .background(
@@ -241,7 +281,7 @@ fun DevicesScreen(
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = if (client.isOnline) "Online / Connected" else "Offline / Disconnected",
+                                text = if (client.isOnline) t("Online / Connected") else t("Offline / Disconnected"),
                                 color = if (client.isOnline) Color(0xFF2ECC71) else Color.Gray,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
@@ -255,15 +295,15 @@ fun DevicesScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Connection", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(t("Connection"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         val connectionText = when (client.connectionType) {
-                            "5G" -> "5 GHz Wireless"
-                            "2.4G", "Wireless" -> "2.4 GHz Wireless"
-                            "Wired" -> "LAN Cable"
+                            "5G" -> t("5 GHz Wireless")
+                            "2.4G", "Wireless" -> t("2.4 GHz Wireless")
+                            "Wired" -> t("LAN Cable")
                             else -> client.connectionType
                         }
                         Text(
-                            text = connectionText,
+                            text = t(connectionText),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -275,7 +315,7 @@ fun DevicesScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("IP Address", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(t("IP Address"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
                             text = client.ipAddress,
                             fontSize = 13.sp,
@@ -290,7 +330,7 @@ fun DevicesScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("MAC Address", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(t("MAC Address"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
                             text = client.macAddress,
                             fontSize = 13.sp,
@@ -307,7 +347,7 @@ fun DevicesScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Signal Strength", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(t("Signal Strength"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = if (client.rssi.isNotEmpty()) "${client.rssi} dBm" else "-",
@@ -329,9 +369,9 @@ fun DevicesScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Internet Access", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(t("Internet Access"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
-                            text = if (isBlocked) "Blocked" else "Allowed",
+                            text = if (isBlocked) t("Blocked") else t("Allowed"),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isBlocked) MaterialTheme.colorScheme.error else Color(0xFF2ECC71)
@@ -351,7 +391,7 @@ fun DevicesScreen(
                     }
                 ) {
                     Text(
-                        text = if (isBlocked) "UNBLOCK DEVICE" else "BLOCK DEVICE",
+                        text = if (isBlocked) t("UNBLOCK DEVICE") else t("BLOCK DEVICE"),
                         fontWeight = FontWeight.Bold,
                         color = if (isBlocked) Color(0xFF2ECC71) else MaterialTheme.colorScheme.error
                     )
@@ -359,7 +399,7 @@ fun DevicesScreen(
             },
             dismissButton = {
                 TextButton(onClick = { selectedClient = null }) {
-                    Text("CLOSE", color = ArcherTeal)
+                    Text(t("CLOSE"), color = ArcherTeal)
                 }
             }
         )
@@ -460,7 +500,7 @@ fun DeviceRowItem(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = client.hostname.ifEmpty { "Unknown Device" },
+                            text = client.hostname.ifEmpty { t("Unknown Device") },
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = if (isOffline) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
@@ -475,7 +515,7 @@ fun DeviceRowItem(
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = "Blocked",
+                                    text = t("Blocked"),
                                     color = MaterialTheme.colorScheme.error,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
@@ -511,7 +551,7 @@ fun DeviceRowItem(
                 }
             } else if (isOffline) {
                 Text(
-                    text = "Offline / Disconnected",
+                    text = t("Offline / Disconnected"),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     fontWeight = FontWeight.SemiBold

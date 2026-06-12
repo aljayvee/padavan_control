@@ -35,6 +35,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.launch
 import com.example.padavancontrol.ui.screens.AdvancedSettingFormPlaceholderScreen
 import com.example.padavancontrol.ui.screens.AdvancedWirelessScreen
@@ -44,6 +45,7 @@ import com.example.padavancontrol.ui.screens.AdvancedFirewallScreen
 import com.example.padavancontrol.ui.screens.AdvancedUsbScreen
 import com.example.padavancontrol.ui.screens.AdvancedAdminScreen
 import com.example.padavancontrol.ui.screens.AdvancedScriptScreen
+import com.example.padavancontrol.ui.screens.AdvancedVpnScreen
 import com.example.padavancontrol.ui.screens.TtydWebShellScreen
 import com.example.padavancontrol.ui.viewmodels.DashboardViewModel
 import com.example.padavancontrol.ui.viewmodels.LoginViewModel
@@ -59,6 +61,11 @@ import com.example.padavancontrol.ui.viewmodels.AdvancedFirewallViewModel
 import com.example.padavancontrol.ui.viewmodels.AdvancedUsbViewModel
 import com.example.padavancontrol.ui.viewmodels.AdvancedAdminViewModel
 import com.example.padavancontrol.ui.viewmodels.AdvancedScriptViewModel
+import com.example.padavancontrol.ui.viewmodels.AdvancedVpnViewModel
+import com.example.padavancontrol.ui.viewmodels.HardwareInfoViewModel
+import com.example.padavancontrol.ui.screens.HardwareInfoScreen
+import com.example.padavancontrol.data.t
+import androidx.compose.material.icons.filled.Refresh
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -67,6 +74,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import com.example.padavancontrol.ui.screens.SplashLoadingScreen
 import com.example.padavancontrol.network.RetrofitClient
+
+import com.example.padavancontrol.ui.viewmodels.AppViewModelFactory
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 sealed interface AppInitState {
     object Loading : AppInitState
@@ -79,7 +89,7 @@ sealed interface AppInitState {
 
 @Composable
 fun MainNavigation() {
-    val context = LocalContext.current
+    val context = LocalContext.current.applicationContext
     var initState by remember { mutableStateOf<AppInitState>(AppInitState.Loading) }
 
     LaunchedEffect(context) {
@@ -111,51 +121,33 @@ fun MainNavigationContent(
     repository: DefaultPadavanRepository,
     settingsDataStore: SettingsDataStore
 ) {
-    val context = LocalContext.current
-
-    val loginViewModel = remember(repository, credentialStore) {
-        LoginViewModel(repository, credentialStore)
-    }
-    val dashboardViewModel = remember(repository, credentialStore) {
-        DashboardViewModel(repository, credentialStore)
-    }
-    val settingsViewModel = remember(credentialStore, settingsDataStore) {
-        SettingsViewModel(credentialStore, settingsDataStore)
-    }
-    val devicesViewModel = remember(repository) {
-        DevicesViewModel(repository)
-    }
-    val trafficViewModel = remember(repository) {
-        TrafficViewModel(repository)
-    }
-    val shellConsoleViewModel = remember(repository) {
-        ShellConsoleViewModel(repository)
-    }
-    val logViewerViewModel = remember(repository) {
-        LogViewerViewModel(repository)
+    val factory = remember(repository, credentialStore, settingsDataStore) {
+        AppViewModelFactory(repository, credentialStore, settingsDataStore)
     }
 
-    val advancedWirelessViewModel = remember(repository) {
-        AdvancedWirelessViewModel(repository)
+    DisposableEffect(repository) {
+        onDispose {
+            repository.cancelActiveWork()
+        }
     }
-    val advancedLanViewModel = remember(repository) {
-        AdvancedLanViewModel(repository)
-    }
-    val advancedWanViewModel = remember(repository) {
-        AdvancedWanViewModel(repository)
-    }
-    val advancedFirewallViewModel = remember(repository) {
-        AdvancedFirewallViewModel(repository)
-    }
-    val advancedUsbViewModel = remember(repository) {
-        AdvancedUsbViewModel(repository)
-    }
-    val advancedAdminViewModel = remember(repository) {
-        AdvancedAdminViewModel(repository)
-    }
-    val advancedScriptViewModel = remember(repository) {
-        AdvancedScriptViewModel(repository)
-    }
+
+    val loginViewModel: LoginViewModel = viewModel(factory = factory)
+    val dashboardViewModel: DashboardViewModel = viewModel(factory = factory)
+    val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
+    val devicesViewModel: DevicesViewModel = viewModel(factory = factory)
+    val trafficViewModel: TrafficViewModel = viewModel(factory = factory)
+    val shellConsoleViewModel: ShellConsoleViewModel = viewModel(factory = factory)
+    val logViewerViewModel: LogViewerViewModel = viewModel(factory = factory)
+
+    val advancedWirelessViewModel: AdvancedWirelessViewModel = viewModel(factory = factory)
+    val advancedLanViewModel: AdvancedLanViewModel = viewModel(factory = factory)
+    val advancedWanViewModel: AdvancedWanViewModel = viewModel(factory = factory)
+    val advancedFirewallViewModel: AdvancedFirewallViewModel = viewModel(factory = factory)
+    val advancedUsbViewModel: AdvancedUsbViewModel = viewModel(factory = factory)
+    val advancedAdminViewModel: AdvancedAdminViewModel = viewModel(factory = factory)
+    val advancedScriptViewModel: AdvancedScriptViewModel = viewModel(factory = factory)
+    val advancedVpnViewModel: AdvancedVpnViewModel = viewModel(factory = factory)
+    val hardwareInfoViewModel: HardwareInfoViewModel = viewModel(factory = factory)
 
     val startKey =
         if (credentialStore.isRememberCredentials() && credentialStore.getPassword().isNotEmpty()) {
@@ -175,7 +167,7 @@ fun MainNavigationContent(
         }
     }
 
-    val showBottomBar = currentKey == Dashboard || currentKey == Devices || currentKey == Traffic || currentKey == Settings
+    val showBottomBar = currentKey == Dashboard || currentKey == Devices || currentKey == Traffic || currentKey == HardwareInfo || currentKey == Settings
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -210,8 +202,8 @@ fun MainNavigationContent(
                                 backStack.add(Dashboard)
                             }
                         },
-                        icon = { Icon(Icons.Filled.Home, contentDescription = "Dashboard") },
-                        label = { Text("Dashboard") }
+                        icon = { Icon(Icons.Filled.Home, contentDescription = t("Dashboard")) },
+                        label = { Text(t("Dashboard")) }
                     )
                     NavigationBarItem(
                         selected = currentKey == Devices,
@@ -220,8 +212,8 @@ fun MainNavigationContent(
                                 backStack.add(Devices)
                             }
                         },
-                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Devices") },
-                        label = { Text("Devices") }
+                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = t("Devices")) },
+                        label = { Text(t("Devices")) }
                     )
                     NavigationBarItem(
                         selected = currentKey == Traffic,
@@ -230,8 +222,18 @@ fun MainNavigationContent(
                                 backStack.add(Traffic)
                             }
                         },
-                        icon = { Icon(Icons.Filled.Info, contentDescription = "Traffic") },
-                        label = { Text("Traffic") }
+                        icon = { Icon(Icons.Filled.Info, contentDescription = t("Traffic")) },
+                        label = { Text(t("Traffic")) }
+                    )
+                    NavigationBarItem(
+                        selected = currentKey == HardwareInfo,
+                        onClick = {
+                            if (currentKey != HardwareInfo) {
+                                backStack.add(HardwareInfo)
+                            }
+                        },
+                        icon = { Icon(Icons.Filled.Refresh, contentDescription = t("Hardware")) },
+                        label = { Text(t("Hardware")) }
                     )
                     NavigationBarItem(
                         selected = currentKey == Settings,
@@ -240,8 +242,8 @@ fun MainNavigationContent(
                                 backStack.add(Settings)
                             }
                         },
-                        icon = { Icon(Icons.Filled.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") }
+                        icon = { Icon(Icons.Filled.Settings, contentDescription = t("Settings")) },
+                        label = { Text(t("Settings")) }
                     )
                 }
             }
@@ -308,6 +310,15 @@ fun MainNavigationContent(
                 entry<Traffic> {
                     TrafficScreen(
                         viewModel = trafficViewModel,
+                        onMenuClick = {
+                            scope.launch { drawerState.open() }
+                        },
+                        modifier = Modifier
+                    )
+                }
+                entry<HardwareInfo> {
+                    HardwareInfoScreen(
+                        viewModel = hardwareInfoViewModel,
                         onMenuClick = {
                             scope.launch { drawerState.open() }
                         },
@@ -410,6 +421,9 @@ fun MainNavigationContent(
                 // Customization
                 entry<CustomScripts> { AdvancedScriptScreen("Scripts", viewModel = advancedScriptViewModel, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
                 entry<CustomDetector> { AdvancedScriptScreen("Detector", viewModel = advancedScriptViewModel, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
+                
+                // VPN
+                entry<AdvancedVpn> { AdvancedVpnScreen(viewModel = advancedVpnViewModel, onNavigateBack = { backStack.removeLastOrNull() }, modifier = Modifier) }
             }
         )
     }

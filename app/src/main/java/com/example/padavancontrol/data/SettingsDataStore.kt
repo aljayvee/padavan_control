@@ -22,7 +22,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
  * form drafts, monitoring preferences, and last-known router state
  * for background event detection.
  */
-class SettingsDataStore(private val context: Context) {
+class SettingsDataStore(private val applicationContext: Context) {
 
     // ─── Per-Category Last-Visited Section ─────────────────────────
 
@@ -31,14 +31,14 @@ class SettingsDataStore(private val context: Context) {
 
     /** Save the last-visited section within an Advanced category. */
     suspend fun saveLastSection(category: String, section: String) {
-        context.dataStore.edit { prefs ->
+        applicationContext.dataStore.edit { prefs ->
             prefs[lastSectionKey(category)] = section
         }
     }
 
     /** Observe the last-visited section for a given category. */
     fun getLastSection(category: String): Flow<String?> =
-        context.dataStore.data.map { prefs ->
+        applicationContext.dataStore.data.map { prefs ->
             prefs[lastSectionKey(category)]
         }
 
@@ -47,13 +47,13 @@ class SettingsDataStore(private val context: Context) {
     private val hubExpandedCategoriesKey = stringSetPreferencesKey("hub_expanded_categories")
 
     suspend fun saveHubExpansionState(expandedCategories: Set<String>) {
-        context.dataStore.edit { prefs ->
+        applicationContext.dataStore.edit { prefs ->
             prefs[hubExpandedCategoriesKey] = expandedCategories
         }
     }
 
     fun getHubExpansionState(): Flow<Set<String>> =
-        context.dataStore.data.map { prefs ->
+        applicationContext.dataStore.data.map { prefs ->
             prefs[hubExpandedCategoriesKey] ?: emptySet()
         }
 
@@ -63,24 +63,24 @@ class SettingsDataStore(private val context: Context) {
     private val monitorIntervalMinutesKey = intPreferencesKey("monitor_interval_minutes")
 
     suspend fun setMonitoringEnabled(enabled: Boolean) {
-        context.dataStore.edit { prefs ->
+        applicationContext.dataStore.edit { prefs ->
             prefs[monitoringEnabledKey] = enabled
         }
     }
 
     fun isMonitoringEnabled(): Flow<Boolean> =
-        context.dataStore.data.map { prefs ->
+        applicationContext.dataStore.data.map { prefs ->
             prefs[monitoringEnabledKey] ?: false
         }
 
     suspend fun setMonitorIntervalMinutes(minutes: Int) {
-        context.dataStore.edit { prefs ->
+        applicationContext.dataStore.edit { prefs ->
             prefs[monitorIntervalMinutesKey] = minutes
         }
     }
 
     fun getMonitorIntervalMinutes(): Flow<Int> =
-        context.dataStore.data.map { prefs ->
+        applicationContext.dataStore.data.map { prefs ->
             prefs[monitorIntervalMinutesKey] ?: 15
         }
 
@@ -89,32 +89,44 @@ class SettingsDataStore(private val context: Context) {
     private val lastKnownWanIpKey = stringPreferencesKey("last_known_wan_ip")
     private val lastKnownDeviceMacsKey = stringSetPreferencesKey("last_known_device_macs")
     private val lastKnownDeviceCountKey = intPreferencesKey("last_known_device_count")
+    private val lastKnownOnlineKey = booleanPreferencesKey("last_known_online")
+
+    suspend fun saveLastKnownOnline(online: Boolean) {
+        applicationContext.dataStore.edit { prefs ->
+            prefs[lastKnownOnlineKey] = online
+        }
+    }
+
+    fun getLastKnownOnline(): Flow<Boolean?> =
+        applicationContext.dataStore.data.map { prefs ->
+            prefs[lastKnownOnlineKey]
+        }
 
     suspend fun saveLastKnownWanIp(ip: String) {
-        context.dataStore.edit { prefs ->
+        applicationContext.dataStore.edit { prefs ->
             prefs[lastKnownWanIpKey] = ip
         }
     }
 
     fun getLastKnownWanIp(): Flow<String?> =
-        context.dataStore.data.map { prefs ->
+        applicationContext.dataStore.data.map { prefs ->
             prefs[lastKnownWanIpKey]
         }
 
     suspend fun saveLastKnownDeviceMacs(macs: Set<String>) {
-        context.dataStore.edit { prefs ->
+        applicationContext.dataStore.edit { prefs ->
             prefs[lastKnownDeviceMacsKey] = macs
             prefs[lastKnownDeviceCountKey] = macs.size
         }
     }
 
     fun getLastKnownDeviceMacs(): Flow<Set<String>> =
-        context.dataStore.data.map { prefs ->
+        applicationContext.dataStore.data.map { prefs ->
             prefs[lastKnownDeviceMacsKey] ?: emptySet()
         }
 
     fun getLastKnownDeviceCount(): Flow<Int> =
-        context.dataStore.data.map { prefs ->
+        applicationContext.dataStore.data.map { prefs ->
             prefs[lastKnownDeviceCountKey] ?: 0
         }
 
@@ -126,45 +138,45 @@ class SettingsDataStore(private val context: Context) {
     private val highTempThresholdKey = intPreferencesKey("high_temp_threshold")
 
     suspend fun setNotifyWanDisconnect(enabled: Boolean) {
-        context.dataStore.edit { prefs -> prefs[notifyWanDisconnectKey] = enabled }
+        applicationContext.dataStore.edit { prefs -> prefs[notifyWanDisconnectKey] = enabled }
     }
 
     fun isNotifyWanDisconnect(): Flow<Boolean> =
-        context.dataStore.data.map { prefs -> prefs[notifyWanDisconnectKey] ?: true }
+        applicationContext.dataStore.data.map { prefs -> prefs[notifyWanDisconnectKey] ?: true }
 
     suspend fun setNotifyNewDevice(enabled: Boolean) {
-        context.dataStore.edit { prefs -> prefs[notifyNewDeviceKey] = enabled }
+        applicationContext.dataStore.edit { prefs -> prefs[notifyNewDeviceKey] = enabled }
     }
 
     fun isNotifyNewDevice(): Flow<Boolean> =
-        context.dataStore.data.map { prefs -> prefs[notifyNewDeviceKey] ?: true }
+        applicationContext.dataStore.data.map { prefs -> prefs[notifyNewDeviceKey] ?: true }
 
     suspend fun setNotifyHighTemp(enabled: Boolean) {
-        context.dataStore.edit { prefs -> prefs[notifyHighTempKey] = enabled }
+        applicationContext.dataStore.edit { prefs -> prefs[notifyHighTempKey] = enabled }
     }
 
     fun isNotifyHighTemp(): Flow<Boolean> =
-        context.dataStore.data.map { prefs -> prefs[notifyHighTempKey] ?: true }
+        applicationContext.dataStore.data.map { prefs -> prefs[notifyHighTempKey] ?: true }
 
     suspend fun setHighTempThreshold(celsius: Int) {
-        context.dataStore.edit { prefs -> prefs[highTempThresholdKey] = celsius }
+        applicationContext.dataStore.edit { prefs -> prefs[highTempThresholdKey] = celsius }
     }
 
     fun getHighTempThreshold(): Flow<Int> =
-        context.dataStore.data.map { prefs -> prefs[highTempThresholdKey] ?: 75 }
+        applicationContext.dataStore.data.map { prefs -> prefs[highTempThresholdKey] ?: 75 }
 
     // ─── App Language Mode ─────────────────────────────────────────
 
     private val appLanguageModeKey = stringPreferencesKey("app_language_mode")
 
     suspend fun saveAppLanguageMode(mode: String) {
-        context.dataStore.edit { prefs ->
+        applicationContext.dataStore.edit { prefs ->
             prefs[appLanguageModeKey] = mode
         }
     }
 
     fun getAppLanguageMode(): Flow<String> =
-        context.dataStore.data.map { prefs ->
+        applicationContext.dataStore.data.map { prefs ->
             // Migrate legacy "EN" value to "EN_ALL"
             val stored = prefs[appLanguageModeKey] ?: "EN_ALL"
             if (stored == "EN") "EN_ALL" else stored

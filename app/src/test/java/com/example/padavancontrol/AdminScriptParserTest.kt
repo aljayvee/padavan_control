@@ -25,8 +25,6 @@ class AdminScriptParserTest : ParserTestBase() {
             var sshd_sftp = "1";
             var webdav_enable = "0";
             var op_mode = "2";
-            var btn_wps_mode = "1";
-            var led_pwr_mode = "1";
             var firmware_version = "3.4.3.9-100";
             var build_date = "2025-10-10";
         """.trimIndent()
@@ -48,8 +46,6 @@ class AdminScriptParserTest : ParserTestBase() {
         assertTrue(config.enableSftp)
         assertFalse(config.enableWebdav)
         assertEquals("2", config.opMode)
-        assertEquals("1", config.btnWpsMode)
-        assertEquals("1", config.ledPowerMode)
         assertEquals("3.4.3.9-100", config.firmwareVersion)
         assertEquals("2025-10-10", config.buildDate)
     }

@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -136,7 +138,7 @@ fun DashboardScreen(
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(
                             Icons.Filled.Settings,
-                            contentDescription = "Settings",
+                            contentDescription = t("Settings"),
                             tint = ArcherTeal
                         )
                     }
@@ -160,6 +162,40 @@ fun DashboardScreen(
                 }
             } else {
                 Spacer(modifier = Modifier.height(4.dp))
+
+                // Error Alert Banner
+                uiState.errorMessage?.let { errorText ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.5.dp, Color(0xFFE74C3C), RoundedCornerShape(16.dp)),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFE74C3C).copy(alpha = 0.08f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Connection Error",
+                                tint = Color(0xFFE74C3C),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = errorText,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
 
                 // Hardware Mismatch Warning Card
                 uiState.hardwareWarning?.let { warningText ->
@@ -219,12 +255,12 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = if (isConnected) "Internet Connected" else "No Internet Access",
+                                text = if (isConnected) t("Internet Connected") else t("No Internet Access"),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                             Text(
-                                text = "IP: ${uiState.wanStatus?.wanIp ?: "0.0.0.0"} • Type: ${uiState.wanStatus?.connectionType ?: "DHCP"}",
+                                text = "${t("IP")}: ${uiState.wanStatus?.wanIp ?: "0.0.0.0"} • ${t("Type")}: ${uiState.wanStatus?.connectionType ?: "DHCP"}",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -259,7 +295,7 @@ fun DashboardScreen(
                     
                     Box(modifier = Modifier.weight(1f)) {
                         DashboardStatCard(
-                            title = "RAM Usage",
+                            title = t("RAM Usage"),
                             value = "$usedMB / $totalMB MB",
                             extra = "${(ramPercent * 100).toInt()}% Used",
                             progress = ramPercent,
@@ -290,7 +326,7 @@ fun DashboardScreen(
                         horizontalAlignment = Alignment.Start
                     ) {
                         Text(
-                            text = "Administrative Actions",
+                            text = t("Administrative Actions"),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = ArcherTeal
@@ -302,31 +338,31 @@ fun DashboardScreen(
                         ) {
                             QuickActionButton(
                                 icon = Icons.Filled.Refresh,
-                                label = "Reboot",
+                                label = t("Reboot"),
                                 onClick = { viewModel.showRebootDialog() },
                                 tint = Color(0xFFE74C3C)
                             )
                             QuickActionButton(
                                 icon = Icons.Filled.PowerSettingsNew,
-                                label = "Shutdown",
+                                label = t("Shutdown"),
                                 onClick = { viewModel.showShutdownDialog() },
                                 tint = Color(0xFFE67E22)
                             )
                             QuickActionButton(
                                 icon = Icons.Filled.Save,
-                                label = "Save",
+                                label = t("Save"),
                                 onClick = { viewModel.commitFlash() },
                                 tint = ArcherTeal
                             )
                             QuickActionButton(
                                 icon = Icons.AutoMirrored.Filled.Article,
-                                label = "Syslogs",
+                                label = t("Syslogs"),
                                 onClick = onNavigateToLogViewer,
                                 tint = ArcherTeal
                             )
                             QuickActionButton(
                                 icon = Icons.Filled.Terminal,
-                                label = "Console",
+                                label = t("Console"),
                                 onClick = onNavigateToShellConsole,
                                 tint = ArcherTeal
                             )
@@ -341,18 +377,18 @@ fun DashboardScreen(
     if (uiState.showRebootDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissRebootDialog() },
-            title = { Text("Reboot Router") },
-            text = { Text("Are you sure you want to reboot the newifi D2 router? It will take about 40 seconds to power back on.") },
+            title = { Text(t("Reboot Router")) },
+            text = { Text(t("Are you sure you want to reboot the newifi D2 router? It will take about 40 seconds to power back on.")) },
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.confirmReboot() }
                 ) {
-                    Text("REBOOT", color = Color(0xFFE74C3C), fontWeight = FontWeight.Bold)
+                    Text(t("REBOOT"), color = Color(0xFFE74C3C), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissRebootDialog() }) {
-                    Text("CANCEL")
+                    Text(t("CANCEL"))
                 }
             }
         )
@@ -361,18 +397,18 @@ fun DashboardScreen(
     if (uiState.showShutdownDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissShutdownDialog() },
-            title = { Text("Power Off Router") },
-            text = { Text("Are you sure you want to power down the newifi D2 router? You will need to manually toggle the physical power switch on the device to start it again.") },
+            title = { Text(t("Power Off Router")) },
+            text = { Text(t("Are you sure you want to power down the newifi D2 router? You will need to manually toggle the physical power switch on the device to start it again.")) },
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.confirmShutdown() }
                 ) {
-                    Text("SHUTDOWN", color = Color(0xFFE67E22), fontWeight = FontWeight.Bold)
+                    Text(t("SHUTDOWN"), color = Color(0xFFE67E22), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissShutdownDialog() }) {
-                    Text("CANCEL")
+                    Text(t("CANCEL"))
                 }
             }
         )
@@ -394,7 +430,7 @@ fun DashboardScreen(
 
         AlertDialog(
             onDismissRequest = { showCpuDetailsModal = false },
-            title = { Text("CPU Performance Diagnostics", fontWeight = FontWeight.Bold) },
+            title = { Text(t("CPU Performance Diagnostics"), fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("CPU Utilization Summary", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
@@ -421,7 +457,7 @@ fun DashboardScreen(
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("System Performance", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+                    Text(t("System Performance"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -429,13 +465,13 @@ fun DashboardScreen(
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        MemoryRow("CPU Temperature", "${status?.cpuTemp ?: 0f}°C")
-                        MemoryRow("Load Average", status?.loadAvg ?: "0.00 0.00 0.00")
-                        MemoryRow("System Uptime", uptimeFormatted)
+                        MemoryRow(t("CPU Temperature"), "${status?.cpuTemp ?: 0f}°C")
+                        MemoryRow(t("Load Average"), status?.loadAvg ?: "0.00 0.00 0.00")
+                        MemoryRow(t("System Uptime"), uptimeFormatted)
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("Raw CPU Ticks", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
+                    Text(t("Raw CPU Ticks"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ArcherTeal)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -456,7 +492,7 @@ fun DashboardScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showCpuDetailsModal = false }) {
-                    Text("CLOSE", fontWeight = FontWeight.Bold, color = ArcherTeal)
+                    Text(t("CLOSE"), fontWeight = FontWeight.Bold, color = ArcherTeal)
                 }
             }
         )
@@ -475,7 +511,7 @@ fun DashboardScreen(
 
         AlertDialog(
             onDismissRequest = { showRamDetailsModal = false },
-            title = { Text("Memory & Swap Utilization", fontWeight = FontWeight.Bold) },
+            title = { Text(t("Memory & Swap Utilization"), fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(
@@ -485,19 +521,19 @@ fun DashboardScreen(
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        MemoryRow("Total Physical Memory", formatBytes(status?.ramTotal ?: 0L))
-                        MemoryRow("Used Memory", formatBytes(status?.ramUsed ?: 0L))
-                        MemoryRow("Free Memory", formatBytes(status?.ramFree ?: 0L))
-                        MemoryRow("Cached Memory", formatBytes(status?.ramCached ?: 0L))
-                        MemoryRow("Buffers Memory", formatBytes(status?.ramBuffers ?: 0L))
-                        MemoryRow("Swap Space", formatBytes(status?.swapTotal ?: 0L))
-                        MemoryRow("Swap Used", formatBytes(status?.swapUsed ?: 0L))
+                        MemoryRow(t("Total Physical Memory"), formatBytes(status?.ramTotal ?: 0L))
+                        MemoryRow(t("Used Memory"), formatBytes(status?.ramUsed ?: 0L))
+                        MemoryRow(t("Free Memory"), formatBytes(status?.ramFree ?: 0L))
+                        MemoryRow(t("Cached Memory"), formatBytes(status?.ramCached ?: 0L))
+                        MemoryRow(t("Buffers Memory"), formatBytes(status?.ramBuffers ?: 0L))
+                        MemoryRow(t("Swap Space"), formatBytes(status?.swapTotal ?: 0L))
+                        MemoryRow(t("Swap Used"), formatBytes(status?.swapUsed ?: 0L))
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showRamDetailsModal = false }) {
-                    Text("CLOSE", fontWeight = FontWeight.Bold, color = ArcherTeal)
+                    Text(t("CLOSE"), fontWeight = FontWeight.Bold, color = ArcherTeal)
                 }
             }
         )
@@ -531,7 +567,7 @@ fun CpuStatCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "CPU Usage",
+                        text = t("CPU Usage"),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -637,7 +673,7 @@ fun EthernetPortsPanel(ports: List<PortLink>) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Physical Ethernet Link Status",
+                text = t("Physical Ethernet Link Status"),
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 color = ArcherTeal
@@ -685,8 +721,8 @@ fun PortWidget(port: PortLink) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = if (port.isConnected) {
-                        if (port.speed.contains("1000") || port.speed.contains("1G", ignoreCase = true)) "1G" else "100M"
-                    } else "Down",
+                        if (port.speed.contains("1000") || port.speed.contains(t("1G"), ignoreCase = true)) t("1G") else t("100M")
+                    } else t("Down"),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (port.isConnected) ArcherTeal else MaterialTheme.colorScheme.onSurfaceVariant
@@ -717,7 +753,7 @@ fun WifiControlCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Wi-Fi Radios",
+                text = t("Wi-Fi Radios"),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = ArcherTeal
@@ -734,7 +770,7 @@ fun WifiControlCard(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("2.4 GHz", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         Text(
-                            if (wifi2GEnabled) "Active" else "Disabled",
+                            if (wifi2GEnabled) t("Active") else t("Disabled"),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -752,7 +788,7 @@ fun WifiControlCard(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("5.0 GHz", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         Text(
-                            if (wifi5GEnabled) "Active" else "Disabled",
+                            if (wifi5GEnabled) t("Active") else t("Disabled"),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

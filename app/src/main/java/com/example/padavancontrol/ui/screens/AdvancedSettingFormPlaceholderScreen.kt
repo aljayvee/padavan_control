@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -56,7 +58,7 @@ fun AdvancedSettingFormPlaceholderScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -83,7 +85,7 @@ fun AdvancedSettingFormPlaceholderScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Router Configuration Form",
+                        text = t("Router Configuration Form"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = ArcherTeal
@@ -107,7 +109,7 @@ fun AdvancedSettingFormPlaceholderScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "Sample Parameters",
+                        text = t("Sample Parameters"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -116,7 +118,7 @@ fun AdvancedSettingFormPlaceholderScreen(
                     OutlinedTextField(
                         value = mockParam1,
                         onValueChange = { mockParam1 = it },
-                        label = { Text("Parameter 1") },
+                        label = { Text(t("Parameter 1")) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -124,7 +126,7 @@ fun AdvancedSettingFormPlaceholderScreen(
                     OutlinedTextField(
                         value = mockParam2,
                         onValueChange = { mockParam2 = it },
-                        label = { Text("Parameter 2") },
+                        label = { Text(t("Parameter 2")) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -135,7 +137,7 @@ fun AdvancedSettingFormPlaceholderScreen(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("APPLY MOCK CHANGES", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(t("APPLY MOCK CHANGES"), color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

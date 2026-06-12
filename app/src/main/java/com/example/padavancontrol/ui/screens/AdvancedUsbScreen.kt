@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -120,7 +122,7 @@ fun AdvancedUsbScreen(
             "FTP" -> "USB - FTP Server Share"
             "Modem" -> "USB - 3G/4G USB Modem"
             "Printer" -> "USB - LPR Printer Share"
-            else -> "USB Applications"
+            else -> t("USB Applications")
         }
     }
 
@@ -300,7 +302,7 @@ fun AdvancedUsbScreen(
 
     fun saveConfig() {
         if (!validateInputs()) {
-            Toast.makeText(context, "Please fix form validation errors first.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, t("Please fix form validation errors first."), Toast.LENGTH_SHORT).show()
             return
         }
         viewModel.saveConfig(pagePath)
@@ -314,7 +316,7 @@ fun AdvancedUsbScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = t("Back"),
                             tint = ArcherTeal
                         )
                     }
@@ -322,7 +324,7 @@ fun AdvancedUsbScreen(
                 actions = {
                     if (!uiState.isLoading && !uiState.isSaving) {
                         IconButton(onClick = { loadConfig() }) {
-                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Reload", tint = ArcherTeal)
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = t("Reload"), tint = ArcherTeal)
                         }
                     }
                 },
@@ -476,13 +478,13 @@ fun AdvancedUsbScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val desc = when (uiState.config.hddSpindown) {
-                                                "0" -> "Disabled"
+                                                "0" -> t("Disabled")
                                                 "300" -> "5 Minutes"
                                                 "600" -> "10 Minutes"
                                                 "900" -> "15 Minutes"
                                                 "1800" -> "30 Minutes"
                                                 "3600" -> "1 Hour"
-                                                else -> "Disabled"
+                                                else -> t("Disabled")
                                             }
                                             Text(desc, color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
@@ -552,18 +554,18 @@ fun AdvancedUsbScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val desc = when (uiState.config.pcacheReclaim) {
-                                                "0" -> "Disabled"
+                                                "0" -> t("Disabled")
                                                 "1" -> "70% RAM"
                                                 "2" -> "50% RAM"
                                                 "3" -> "30% RAM"
                                                 "4" -> "15% RAM"
-                                                else -> "Disabled"
+                                                else -> t("Disabled")
                                             }
                                             Text(desc, color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
                                         DropdownMenu(expanded = reclaimExpanded, onDismissRequest = { reclaimExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(pcacheReclaim = "0")); reclaimExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Disabled")) }, onClick = { viewModel.updateConfig(uiState.config.copy(pcacheReclaim = "0")); reclaimExpanded = false })
                                             DropdownMenuItem(text = { Text("70% RAM") }, onClick = { viewModel.updateConfig(uiState.config.copy(pcacheReclaim = "1")); reclaimExpanded = false })
                                             DropdownMenuItem(text = { Text("50% RAM") }, onClick = { viewModel.updateConfig(uiState.config.copy(pcacheReclaim = "2")); reclaimExpanded = false })
                                             DropdownMenuItem(text = { Text("30% RAM") }, onClick = { viewModel.updateConfig(uiState.config.copy(pcacheReclaim = "3")); reclaimExpanded = false })
@@ -597,16 +599,16 @@ fun AdvancedUsbScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val desc = when (uiState.config.optwEnable) {
-                                                "0" -> "Disabled"
+                                                "0" -> t("Disabled")
                                                 "1" -> "Optware Subsystem"
                                                 "2" -> "Entware Subsystem"
-                                                else -> "Disabled"
+                                                else -> t("Disabled")
                                             }
                                             Text(desc, color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
                                         DropdownMenu(expanded = optwExpanded, onDismissRequest = { optwExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(optwEnable = "0")); optwExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Disabled")) }, onClick = { viewModel.updateConfig(uiState.config.copy(optwEnable = "0")); optwExpanded = false })
                                             DropdownMenuItem(text = { Text("Optware Partition Mount (/opt)") }, onClick = { viewModel.updateConfig(uiState.config.copy(optwEnable = "1")); optwExpanded = false })
                                             DropdownMenuItem(text = { Text("Entware Package Subsystem") }, onClick = { viewModel.updateConfig(uiState.config.copy(optwEnable = "2")); optwExpanded = false })
                                         }
@@ -797,12 +799,12 @@ fun AdvancedUsbScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(if (uiState.config.sambaLmb == "1") "Yes" else "No", color = Color.Black, fontSize = 14.sp)
+                                            Text(if (uiState.config.sambaLmb == "1") t("Yes") else t("No"), color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
                                         DropdownMenu(expanded = sambaLmbExpanded, onDismissRequest = { sambaLmbExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(sambaLmb = "0")); sambaLmbExpanded = false })
-                                            DropdownMenuItem(text = { Text("Yes") }, onClick = { viewModel.updateConfig(uiState.config.copy(sambaLmb = "1")); sambaLmbExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(sambaLmb = "0")); sambaLmbExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Yes")) }, onClick = { viewModel.updateConfig(uiState.config.copy(sambaLmb = "1")); sambaLmbExpanded = false })
                                         }
                                     }
 
@@ -818,12 +820,12 @@ fun AdvancedUsbScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(if (uiState.config.sambaFp == "1") "Yes" else "No", color = Color.Black, fontSize = 14.sp)
+                                            Text(if (uiState.config.sambaFp == "1") t("Yes") else t("No"), color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
                                         DropdownMenu(expanded = sambaFpExpanded, onDismissRequest = { sambaFpExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(sambaFp = "0")); sambaFpExpanded = false })
-                                            DropdownMenuItem(text = { Text("Yes") }, onClick = { viewModel.updateConfig(uiState.config.copy(sambaFp = "1")); sambaFpExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(sambaFp = "0")); sambaFpExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Yes")) }, onClick = { viewModel.updateConfig(uiState.config.copy(sambaFp = "1")); sambaFpExpanded = false })
                                         }
                                     }
                                 }
@@ -980,12 +982,12 @@ fun AdvancedUsbScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(if (uiState.config.ftpLog) "Yes" else "No", color = Color.Black, fontSize = 14.sp)
+                                            Text(if (uiState.config.ftpLog) t("Yes") else t("No"), color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
                                         DropdownMenu(expanded = ftpLogExpanded, onDismissRequest = { ftpLogExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("No") }, onClick = { viewModel.updateConfig(uiState.config.copy(ftpLog = false)); ftpLogExpanded = false })
-                                            DropdownMenuItem(text = { Text("Yes") }, onClick = { viewModel.updateConfig(uiState.config.copy(ftpLog = true)); ftpLogExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("No")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ftpLog = false)); ftpLogExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Yes")) }, onClick = { viewModel.updateConfig(uiState.config.copy(ftpLog = true)); ftpLogExpanded = false })
                                         }
                                     }
 
@@ -1299,7 +1301,7 @@ fun AdvancedUsbScreen(
                                             label = { Text("Dial Password") },
                                             visualTransformation = if (showModemPassword) VisualTransformation.None else PasswordVisualTransformation(),
                                             trailingIcon = {
-                                                val text = if (showModemPassword) "Hide" else "Show"
+                                                val text = if (showModemPassword) t("Hide") else t("Show")
                                                 Text(
                                                     text = text,
                                                     color = ArcherTeal,
@@ -1479,16 +1481,16 @@ fun AdvancedUsbScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val desc = when (uiState.config.rawdEnable) {
-                                                "0" -> "Disabled"
+                                                "0" -> t("Disabled")
                                                 "1" -> "RAW TCP server enabled"
                                                 "2" -> "RAW Bidirectional connection enabled"
-                                                else -> "Disabled"
+                                                else -> t("Disabled")
                                             }
                                             Text(desc, color = Color.Black, fontSize = 14.sp)
                                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                                         }
                                         DropdownMenu(expanded = rawdExpanded, onDismissRequest = { rawdExpanded = false }) {
-                                            DropdownMenuItem(text = { Text("Disabled") }, onClick = { viewModel.updateConfig(uiState.config.copy(rawdEnable = "0")); rawdExpanded = false })
+                                            DropdownMenuItem(text = { Text(t("Disabled")) }, onClick = { viewModel.updateConfig(uiState.config.copy(rawdEnable = "0")); rawdExpanded = false })
                                             DropdownMenuItem(text = { Text("RAW Server (JetDirect Port 9100)") }, onClick = { viewModel.updateConfig(uiState.config.copy(rawdEnable = "1")); rawdExpanded = false })
                                             DropdownMenuItem(text = { Text("RAW Bidirectional Server Mode") }, onClick = { viewModel.updateConfig(uiState.config.copy(rawdEnable = "2")); rawdExpanded = false })
                                         }
@@ -1544,9 +1546,9 @@ fun AdvancedUsbScreen(
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                         } else {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(imageVector = Icons.Default.Check, contentDescription = "Save")
+                                Icon(imageVector = Icons.Default.Check, contentDescription = t("Save"))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Apply Settings", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text(t("Apply Settings"), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1566,13 +1568,13 @@ fun AdvancedUsbScreen(
                     OutlinedTextField(
                         value = accountNameInput,
                         onValueChange = { accountNameInput = it },
-                        label = { Text("Username") },
+                        label = { Text(t("Username")) },
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                     )
                     OutlinedTextField(
                         value = accountPassInput,
                         onValueChange = { accountPassInput = it },
-                        label = { Text("Password") },
+                        label = { Text(t("Password")) },
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                     )
@@ -1651,7 +1653,7 @@ fun AdvancedUsbScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = ArcherTeal)
                 ) {
-                    Text("Save")
+                    Text(t("Save"))
                 }
             },
             dismissButton = {
@@ -2290,7 +2292,7 @@ private val countryList = listOf(
         IspEntry("Celcom", "0", "celcom3g", "*99***1#", "", ""),
         IspEntry("Maxis", "0", "unet", "*99***1#", "maxis", "wap"),
         IspEntry("Digi", "0", "3gdgnet", "*99#", "", ""),
-        IspEntry("Yes", "3", "", "", "", "")
+        IspEntry(t("Yes"), "3", "", "", "", "")
     )),
     CountryEntry("Netherland", "NE", listOf(
         IspEntry("T-Mobile", "0", "internet", "*99***1#", "", ""),

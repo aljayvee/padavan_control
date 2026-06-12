@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -70,7 +72,7 @@ fun SettingsScreen(
                         )
                     }
                 },
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                title = { Text(t("Settings"), fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
@@ -91,7 +93,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Connection Details",
+                        text = t("Connection Details"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = ArcherTeal
@@ -101,7 +103,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = uiState.routerIp,
                         onValueChange = { viewModel.updateRouterIp(it) },
-                        label = { Text("Router IP") },
+                        label = { Text(t("Router IP")) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -115,7 +117,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Security",
+                        text = t("Security"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = ArcherTeal
@@ -129,12 +131,12 @@ fun SettingsScreen(
                     ) {
                         Column {
                             Text(
-                                "Remember Credentials",
+                                t("Remember Credentials"),
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp
                             )
                             Text(
-                                "Save username and password",
+                                t("Save username and password"),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -155,12 +157,12 @@ fun SettingsScreen(
                     ) {
                         Column {
                             Text(
-                                "Use Biometric Lock",
+                                t("Use Biometric Lock"),
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp
                             )
                             Text(
-                                "Gated app start with fingerprint",
+                                t("Gated app start with fingerprint"),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -181,7 +183,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Background Router Monitoring",
+                        text = t("Background Router Monitoring"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = ArcherTeal
@@ -195,12 +197,12 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Enable Monitoring",
+                                t("Enable Monitoring"),
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp
                             )
                             Text(
-                                "Regularly poll status in background for router alerts",
+                                t("Regularly poll status in background for router alerts"),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -216,7 +218,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                            text = "Notification Triggers",
+                            text = t("Notification Triggers"),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -230,12 +232,12 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "WAN Disconnect Alert",
+                                    t("WAN Disconnect Alert"),
                                     fontWeight = FontWeight.Normal,
                                     fontSize = 13.sp
                                 )
                                 Text(
-                                    "Notify when internet drops or IP changes",
+                                    t("Notify when internet drops or IP changes"),
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -257,12 +259,12 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "New Device Connected Alert",
+                                    t("New Device Connected Alert"),
                                     fontWeight = FontWeight.Normal,
                                     fontSize = 13.sp
                                 )
                                 Text(
-                                    "Alert when a new device connects to LAN",
+                                    t("Alert when a new device connects to LAN"),
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -284,7 +286,7 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "High CPU Temperature Alert",
+                                    t("High CPU Temperature Alert"),
                                     fontWeight = FontWeight.Normal,
                                     fontSize = 13.sp
                                 )
@@ -327,7 +329,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "About",
+                        text = t("About"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = ArcherTeal
@@ -355,7 +357,7 @@ fun SettingsScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("DISCONNECT & LOGOUT", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(t("DISCONNECT & LOGOUT"), color = Color.White, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(30.dp))

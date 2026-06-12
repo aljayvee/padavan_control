@@ -90,6 +90,15 @@ class LoginViewModel(
             _uiState.update { it.copy(errorMessage = "IP Address is required") }
             return
         }
+        
+        // Strict validation: Allow IPv4, IPv6, or valid hostnames (with optional port)
+        val ipRegex = Regex("^([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}(:\\d{1,5})?$|^\\d{1,3}(\\.\\d{1,3}){3}(:\\d{1,5})?$|^\\[?[a-fA-F0-9:]+]?(:\\d{1,5})?$")
+        val cleanIp = state.ipAddress.removePrefix("http://").removePrefix("https://").trimEnd('/')
+        if (!cleanIp.matches(ipRegex) && cleanIp != "localhost") {
+            _uiState.update { it.copy(errorMessage = "Invalid IP Address or Hostname format") }
+            return
+        }
+        
         if (state.username.isEmpty()) {
             _uiState.update { it.copy(errorMessage = "Username is required") }
             return
@@ -127,6 +136,7 @@ class LoginViewModel(
     }
 
     fun discoverRouter(context: Context) {
+        val appContext = context.applicationContext
         viewModelScope.launch {
             _uiState.update { 
                 it.copy(
@@ -139,7 +149,7 @@ class LoginViewModel(
 
             try {
                 // VPN check
-                if (RouterDiscoveryService.isVpnActive(context)) {
+                if (RouterDiscoveryService.isVpnActive(appContext)) {
                     _uiState.update {
                         it.copy(
                             isScanning = false,
@@ -152,7 +162,7 @@ class LoginViewModel(
                 val discovered = mutableListOf<String>()
 
                 // 1. Probe the DHCP Gateway IP first
-                val gatewayIp = RouterDiscoveryService.getWifiGatewayIp(context)
+                val gatewayIp = RouterDiscoveryService.getWifiGatewayIp(appContext)
                 if (gatewayIp != null) {
                     _uiState.update { it.copy(scanStatusMessage = "Probing gateway: $gatewayIp...") }
                     val isPadavan = RouterDiscoveryService.probeIp(gatewayIp)

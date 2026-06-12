@@ -1,5 +1,7 @@
 package com.example.padavancontrol.ui.screens
 
+import com.example.padavancontrol.data.t
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -84,6 +86,7 @@ import com.example.padavancontrol.Wifi5gMacFilter
 import com.example.padavancontrol.Wifi5gProfessional
 import com.example.padavancontrol.Wifi5gRadius
 import com.example.padavancontrol.theme.ArcherTeal
+import com.example.padavancontrol.AdvancedVpn
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,7 +104,8 @@ fun AdvancedSidebarContent(
             "firewall" to false,
             "usb" to false,
             "admin" to false,
-            "custom" to false
+            "custom" to false,
+            "vpn" to false
         )
     }
 
@@ -127,13 +131,13 @@ fun AdvancedSidebarContent(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "ADVANCED SETTINGS",
+                        text = t("ADVANCED SETTINGS"),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = ArcherTeal
                     )
                     Text(
-                        text = "Router Configuration",
+                        text = t("Router Configuration"),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -146,131 +150,143 @@ fun AdvancedSidebarContent(
 
             // Category 1: Wireless 2.4GHz
             AccordionCategory(
-                title = "Wireless 2.4GHz",
-                subtitle = "SSIDs, security, and radio limits",
+                title = t("Wireless 2.4GHz"),
+                subtitle = t("SSIDs, security, and radio limits"),
                 isExpanded = expandedStates["wireless2g"] == true,
                 onToggle = { expandedStates["wireless2g"] = !(expandedStates["wireless2g"] ?: false) },
                 items = listOf(
-                    "General Settings" to Wifi2gGeneral,
-                    "Guest AP" to Wifi2gGuest,
-                    "Bridge (WDS)" to Wifi2gBridge,
-                    "Wireless MAC Filter" to Wifi2gMacFilter,
-                    "RADIUS Settings" to Wifi2gRadius,
-                    "Professional Parameters" to Wifi2gProfessional
+                    t("General Settings") to Wifi2gGeneral,
+                    t("Guest AP") to Wifi2gGuest,
+                    t("Bridge (WDS)") to Wifi2gBridge,
+                    t("Wireless MAC Filter") to Wifi2gMacFilter,
+                    t("RADIUS Settings") to Wifi2gRadius,
+                    t("Professional Parameters") to Wifi2gProfessional
                 ),
                 onItemClick = onNavigateToPage
             )
 
             // Category 2: Wireless 5GHz
             AccordionCategory(
-                title = "Wireless 5GHz",
-                subtitle = "High-speed 5G channels and security",
+                title = t("Wireless 5GHz"),
+                subtitle = t("High-speed 5G channels and security"),
                 isExpanded = expandedStates["wireless5g"] == true,
                 onToggle = { expandedStates["wireless5g"] = !(expandedStates["wireless5g"] ?: false) },
                 items = listOf(
-                    "General Settings" to Wifi5gGeneral,
-                    "Guest AP" to Wifi5gGuest,
-                    "Bridge (WDS)" to Wifi5gBridge,
-                    "Wireless MAC Filter" to Wifi5gMacFilter,
-                    "RADIUS Settings" to Wifi5gRadius,
-                    "Professional Parameters" to Wifi5gProfessional
+                    t("General Settings") to Wifi5gGeneral,
+                    t("Guest AP") to Wifi5gGuest,
+                    t("Bridge (WDS)") to Wifi5gBridge,
+                    t("Wireless MAC Filter") to Wifi5gMacFilter,
+                    t("RADIUS Settings") to Wifi5gRadius,
+                    t("Professional Parameters") to Wifi5gProfessional
                 ),
                 onItemClick = onNavigateToPage
             )
 
             // Category 3: Local Network (LAN)
             AccordionCategory(
-                title = "Local Network (LAN)",
-                subtitle = "Subnet routing, DHCP lease and IPTV",
+                title = t("Local Network (LAN)"),
+                subtitle = t("Subnet routing, DHCP lease and IPTV"),
                 isExpanded = expandedStates["lan"] == true,
                 onToggle = { expandedStates["lan"] = !(expandedStates["lan"] ?: false) },
                 items = listOf(
-                    "LAN IP & Netmask" to LanIp,
-                    "DHCP Server Pool" to LanDhcp,
-                    "Static Routes" to LanRoute,
-                    "IPTV Setup" to LanIptv,
-                    "Ethernet Switch Config" to LanSwitch,
-                    "Wake-on-LAN client" to LanWol
+                    t("LAN IP & Netmask") to LanIp,
+                    t("DHCP Server Pool") to LanDhcp,
+                    t("Static Routes") to LanRoute,
+                    t("IPTV Setup") to LanIptv,
+                    t("Ethernet Switch Config") to LanSwitch,
+                    t("Wake-on-LAN client") to LanWol
                 ),
                 onItemClick = onNavigateToPage
             )
 
             // Category 4: Internet Gateway (WAN)
             AccordionCategory(
-                title = "Internet Gateway (WAN)",
-                subtitle = "WAN, IPv6 settings, DMZ & DDNS",
+                title = t("Internet Gateway (WAN)"),
+                subtitle = t("WAN, IPv6 settings, DMZ & DDNS"),
                 isExpanded = expandedStates["wan"] == true,
                 onToggle = { expandedStates["wan"] = !(expandedStates["wan"] ?: false) },
                 items = listOf(
-                    "Internet Connection" to WanConnection,
-                    "IPv6 Protocol stack" to WanIpv6,
-                    "Port Forwarding (NAT)" to WanPortForward,
-                    "DMZ Host Settings" to WanDmz,
-                    "Dynamic DNS (DDNS)" to WanDdns
+                    t("Internet Connection") to WanConnection,
+                    t("IPv6 Protocol stack") to WanIpv6,
+                    t("Port Forwarding (NAT)") to WanPortForward,
+                    t("DMZ Host Settings") to WanDmz,
+                    t("Dynamic DNS (DDNS)") to WanDdns
                 ),
                 onItemClick = onNavigateToPage
             )
 
             // Category 5: Security & Firewall
             AccordionCategory(
-                title = "Security & Firewall",
-                subtitle = "Packet filters, MAC / URL blocklists",
+                title = t("Security & Firewall"),
+                subtitle = t("Packet filters, MAC / URL blocklists"),
                 isExpanded = expandedStates["firewall"] == true,
                 onToggle = { expandedStates["firewall"] = !(expandedStates["firewall"] ?: false) },
                 items = listOf(
-                    "General Security" to FirewallGeneral,
-                    "Netfilter SPI rules" to FirewallNetfilter,
-                    "URL Web Filter" to FirewallUrlFilter,
-                    "Hardware MAC Filter" to FirewallMacFilter,
-                    "Network Services Filter" to FirewallServicesFilter,
-                    "DNS ipset Blacklist" to FirewallDnsIpsetFilter
+                    t("General Security") to FirewallGeneral,
+                    t("Netfilter SPI rules") to FirewallNetfilter,
+                    t("URL Web Filter") to FirewallUrlFilter,
+                    t("Hardware MAC Filter") to FirewallMacFilter,
+                    t("Network Services Filter") to FirewallServicesFilter,
+                    t("DNS ipset Blacklist") to FirewallDnsIpsetFilter
                 ),
                 onItemClick = onNavigateToPage
             )
 
             // Category 6: USB Applications
             AccordionCategory(
-                title = "USB Applications",
-                subtitle = "Samba share, FTP share, modems & printer",
+                title = t("USB Applications"),
+                subtitle = t("Samba share, FTP share, modems & printer"),
                 isExpanded = expandedStates["usb"] == true,
                 onToggle = { expandedStates["usb"] = !(expandedStates["usb"] ?: false) },
                 items = listOf(
-                    "Common Setting" to UsbCommon,
-                    "Samba Server Share" to UsbSamba,
-                    "FTP Accounts Share" to UsbFtp,
-                    "3G/4G USB Modem" to UsbModem,
-                    "LPR Printer Share" to UsbPrinter
+                    t("Common Setting") to UsbCommon,
+                    t("Samba Server Share") to UsbSamba,
+                    t("FTP Accounts Share") to UsbFtp,
+                    t("3G/4G USB Modem") to UsbModem,
+                    t("LPR Printer Share") to UsbPrinter
                 ),
                 onItemClick = onNavigateToPage
             )
 
             // Category 7: System Administration
             AccordionCategory(
-                title = "System Administration",
-                subtitle = "Firmware, password, logs & op modes",
+                title = t("System Administration"),
+                subtitle = t("Firmware, password, logs & op modes"),
                 isExpanded = expandedStates["admin"] == true,
                 onToggle = { expandedStates["admin"] = !(expandedStates["admin"] ?: false) },
                 items = listOf(
-                    "System Settings" to AdminSystem,
-                    "SSH / Telnet Services" to AdminServices,
-                    "Operation Mode" to AdminOpMode,
-                    "Firmware Upgrade" to AdminFirmware,
-                    "Settings Backup & Flash" to AdminSettingsBackup,
-                    "Shell Web Console" to AdminConsole,
-                    "Hardware Buttons / LEDs" to AdminButtonsLed
+                    t("System Settings") to AdminSystem,
+                    t("SSH / Telnet Services") to AdminServices,
+                    t("Operation Mode") to AdminOpMode,
+                    t("Firmware Upgrade") to AdminFirmware,
+                    t("Settings Backup & Flash") to AdminSettingsBackup,
+                    t("Shell Web Console") to AdminConsole,
+                    t("Hardware Buttons / LEDs") to AdminButtonsLed
                 ),
                 onItemClick = onNavigateToPage
             )
 
             // Category 8: Hacker Customizations
             AccordionCategory(
-                title = "Hacker Customizations",
-                subtitle = "Startup script files and ping watchdog",
+                title = t("Hacker Customizations"),
+                subtitle = t("Startup script files and ping watchdog"),
                 isExpanded = expandedStates["custom"] == true,
                 onToggle = { expandedStates["custom"] = !(expandedStates["custom"] ?: false) },
                 items = listOf(
-                    "Bash Startup Scripts" to CustomScripts,
-                    "Internet Detector" to CustomDetector
+                    t("Bash Startup Scripts") to CustomScripts,
+                    t("Internet Detector") to CustomDetector
+                ),
+                onItemClick = onNavigateToPage
+            )
+
+            // Category 9: Virtual Private Network (VPN)
+            AccordionCategory(
+                title = t("Virtual Private Network (VPN)"),
+                subtitle = t("VPN client configurations"),
+                isExpanded = expandedStates["vpn"] == true,
+                onToggle = { expandedStates["vpn"] = !(expandedStates["vpn"] ?: false) },
+                items = listOf(
+                    t("VPN Client Settings") to AdvancedVpn
                 ),
                 onItemClick = onNavigateToPage
             )
